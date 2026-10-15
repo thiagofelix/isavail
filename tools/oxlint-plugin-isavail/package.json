@@ -1,0 +1,13 @@
+{
+  "name": "@isavail/oxlint-plugin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oxlint rules that enforce the repository coding standards.",
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "@oxlint/plugins": "1.88.0"
+  }
+}

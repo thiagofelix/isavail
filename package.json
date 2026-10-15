@@ -1,0 +1,33 @@
+{
+  "name": "@isavail/root",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ready": "vp check && vp run -r test",
+    "dev": "vp run --parallel --filter @isavail/relay --filter @isavail/web dev",
+    "generate:openapi": "vp run @isavail/web#generate:openapi",
+    "deploy": "vp run @isavail/web#deploy",
+    "deploy:production": "vp run @isavail/web#deploy:production",
+    "plan:observability": "vp run @isavail/shared-infrastructure#plan",
+    "deploy:observability": "vp run @isavail/shared-infrastructure#deploy",
+    "destroy": "vp run @isavail/relay#destroy"
+  },
+  "devDependencies": {
+    "@foldkit/oxlint-plugin": "0.15.3",
+    "@isavail/oxlint-plugin": "workspace:*",
+    "@types/node": "^24.19.2",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.11.2",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

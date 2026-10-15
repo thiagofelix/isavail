@@ -1,0 +1,26 @@
+{
+  "name": "@isavail/availability-contract",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Domain availability vocabulary and the Registry relay contract shared by the web app and the relay.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./relay-stack": "./src/relay-stack.ts"
+  },
+  "scripts": {
+    "test": "vp test"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "alchemy": "catalog:",
+    "effect": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "alchemy": "catalog:",
+    "effect": "catalog:"
+  }
+}

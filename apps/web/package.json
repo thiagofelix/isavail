@@ -1,0 +1,29 @@
+{
+  "name": "@isavail/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Domain availability web app and public HTTP API on Cloudflare.",
+  "type": "module",
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "catalog:",
+    "@foldkit/ui": "catalog:",
+    "@isavail/availability-contract": "workspace:*",
+    "@isavail/shared-infrastructure": "workspace:*",
+    "alchemy": "catalog:",
+    "effect": "catalog:",
+    "foldkit": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@foldkit/vite-plugin": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,52 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+
+catalogMode: prefer
+
+catalog:
+  "@effect/platform-browser": 4.0.5
+  "@effect/platform-node": 4.0.5
+  "@effect/platform-node-shared": 4.0.5
+  "@effect/vitest": 4.0.5
+  "@foldkit/ui": 0.168.0
+  "@foldkit/vite-plugin": 0.27.1
+  "@types/node": ^24
+  alchemy: 2.0.0-beta.83
+  effect: 4.0.5
+  foldkit: 0.168.0
+  typescript: ^7.0.2
+  vite: npm:@voidzero-dev/vite-plus-core@1.2.0
+  vite-plus: 1.2.0
+  vitest: 5.0.4
+
+# Effect 4.0.4 introduced the UDP DatagramSocket the relay needs, while Foldkit
+# pins its Effect peers to exactly 4.0.0. One Effect copy must exist in the
+# graph because Context identity breaks across copies, so every Effect package
+# is forced to the same patch release.
+overrides:
+  vite@*: "catalog:"
+  effect: "catalog:"
+  "@effect/platform-browser": "catalog:"
+  "@effect/platform-node": "catalog:"
+  "@effect/platform-node-shared": "catalog:"
+
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"
+    effect: "4"
+    "@effect/platform-browser": "4"
+
+minimumReleaseAgeExclude:
+  - "@effect/platform-browser@4.0.5"
+  - "@effect/platform-node-shared@4.0.5"
+  - "@effect/platform-node@4.0.5"
+  - "@effect/vitest@4.0.5"
+  - effect@4.0.5
+
+allowBuilds:
+  workerd: true
+  esbuild: true
