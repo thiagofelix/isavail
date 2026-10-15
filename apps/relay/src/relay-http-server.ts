@@ -7,6 +7,7 @@ import {
 import { Config, Effect, Layer, Redacted } from "effect";
 import { HttpServer } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
+// oxlint-disable-next-line effecttsgo/node-builtin-import -- Effect's Crypto has no constant-time comparison.
 import { timingSafeEqual } from "node:crypto";
 import { IsavailClient, isavailClientLayer } from "./isavail-client.ts";
 
@@ -30,6 +31,8 @@ const accessTokensMatch = (
  * the relay program while planning a deployment, where the token does not
  * exist. A relay started without the token rejects nothing silently: the
  * request fails as a defect and the relay logs the missing configuration.
+ *
+ * @internal
  */
 export const relayAuthorizationLayer = Layer.succeed(
   RelayAuthorization,
@@ -40,7 +43,7 @@ export const relayAuthorizationLayer = Layer.succeed(
       );
 
       if (!accessTokensMatch(credential, expected)) {
-        return yield* new RelayAccessDenied({
+        return yield* RelayAccessDenied.make({
           message:
             "The relay access token is missing or does not match. Send the token the relay Stack published as a bearer credential.",
         });
@@ -71,13 +74,19 @@ const systemHandlersLayer = HttpApiBuilder.group(RegistryRelayHttpApi, "system",
 /**
  * Relay endpoint handlers and their access check, backed by the contextual
  * ISAVAIL client. The caller provides `IsavailClient`.
+ *
+ * @internal
  */
 export const relayHttpHandlersLayerWithoutDependencies = Layer.mergeAll(
   registryLookupsHandlersLayer,
   systemHandlersLayer,
 ).pipe(Layer.provideMerge(relayAuthorizationLayer));
 
-/** Relay HTTP routes backed by Registro.br, ready to serve. */
+/**
+ * Relay HTTP routes backed by Registro.br, ready to serve.
+ *
+ * @internal
+ */
 export const relayHttpApiLayer = HttpApiBuilder.layer(RegistryRelayHttpApi).pipe(
   Layer.provide(relayHttpHandlersLayerWithoutDependencies),
   Layer.provide(isavailClientLayer),

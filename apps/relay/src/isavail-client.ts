@@ -8,6 +8,7 @@ import {
   RetryAfterSeconds,
 } from "@isavail/availability-contract";
 import {
+  Array,
   Context,
   DateTime,
   Deferred,
@@ -121,7 +122,7 @@ export interface IIsavailClient {
 
 /** Provides the contextual Registro.br ISAVAIL client. */
 export class IsavailClient extends Context.Service<IsavailClient, IIsavailClient>()(
-  "@isavail/relay/IsavailClient",
+  "@isavail/relay/isavail-client/IsavailClient",
 ) {}
 
 type QueryOutcome =
@@ -170,6 +171,8 @@ const rateLimitedFailure = (retryAfter: Duration.Duration): RegistryLookupFailur
  * contextual `RateLimiter`. Each lookup batch opens its own UDP socket and
  * correlates answers by query identifier, so concurrent batches never read
  * each other's answers.
+ *
+ * @internal
  */
 export const makeIsavailClient = Effect.gen(function* () {
   const settings = yield* IsavailClientSettings;
@@ -454,7 +457,7 @@ export const makeIsavailClient = Effect.gen(function* () {
       Effect.catchTag("DatagramSocketError", (error) =>
         Effect.logWarning("Could not open a UDP socket to Registro.br", error.message).pipe(
           Effect.as(
-            domainNames.map((domainName) =>
+            Array.map(domainNames, (domainName) =>
               failedLookup(domainName, RegistryLookupFailure.cases.RegistryUnreachable.make({})),
             ),
           ),
@@ -469,6 +472,8 @@ export const makeIsavailClient = Effect.gen(function* () {
 /**
  * Provides the ISAVAIL client while leaving its `RateLimiter` to the caller.
  * Settings come from {@link IsavailClientSettings}, whose default is production.
+ *
+ * @internal
  */
 export const isavailClientLayerWithoutDependencies = Layer.effect(IsavailClient, makeIsavailClient);
 
@@ -518,7 +523,7 @@ export const isavailClientTestLayer = Layer.succeed(
       Effect.gen(function* () {
         const checkedAt = yield* DateTime.now;
 
-        return domainNames.map((domainName) =>
+        return Array.map(domainNames, (domainName) =>
           RegistryLookup.cases.Resolved.make({
             domainName,
             availability: Option.getOrElse(

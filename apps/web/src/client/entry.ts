@@ -1,5 +1,5 @@
 import "./styles.css";
-import { Runtime } from "foldkit";
+import { Http, Runtime } from "foldkit";
 import { init, update } from "./main.ts";
 import { Message } from "./message.ts";
 import { Model } from "./model.ts";
@@ -11,6 +11,7 @@ const application = Runtime.makeApplication({
   update,
   view,
   container: document.getElementById("root"),
+  resources: Http.layer,
   devTools: { Message },
 });
 

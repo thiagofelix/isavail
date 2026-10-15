@@ -4,6 +4,7 @@ import {
   type RetryAfterSeconds,
 } from "@isavail/availability-contract";
 import { Array, Option, pipe, Schema, String } from "effect";
+import type { HttpClient } from "effect/http";
 import type { Runtime, Update } from "foldkit";
 import { modifyFields } from "foldkit/struct";
 import { DomainCheck, MAX_DOMAIN_CHECK_BATCH_SIZE } from "../api/availability-http-api.ts";
@@ -83,9 +84,14 @@ const isWaitingFor =
   (row: DomainRow): boolean =>
     row._tag === "WaitingForRegistryBudget" && row.retryAfterSeconds === retryAfterSeconds;
 
-/** Advances the page for each Message. */
+/**
+ * Advances the page for each Message.
+ *
+ * @internal
+ */
+// oxlint-disable-next-line effecttsgo/missing-pipeable-signature -- Foldkit's runtime calls update(model, message).
 export const update = (model: Model, message: Message) =>
-  Message.match<Update.Return<Model, Message>>(message, {
+  Message.match<Update.Return<Model, Message, HttpClient.HttpClient>>(message, {
     UpdatedEntriesInput: ({ value }) => ({
       model: modifyFields(model, { entriesInput: () => value }),
     }),
@@ -192,8 +198,12 @@ export const update = (model: Model, message: Message) =>
     },
   });
 
-/** Starts with an empty form and no results. */
-export const init: Runtime.ApplicationInit<Model, Message> = () => ({
+/**
+ * Starts with an empty form and no results.
+ *
+ * @internal
+ */
+export const init: Runtime.ApplicationInit<Model, Message, void, HttpClient.HttpClient> = () => ({
   model: {
     entriesInput: "",
     entryFeedback: EntryFeedback.Accepted(),

@@ -1,11 +1,15 @@
 import { DomainName, RetryAfterSeconds } from "@isavail/availability-contract";
 import { Duration, Effect, Schema } from "effect";
 import { HttpApiClient } from "effect/http-api";
-import { Command, Http } from "foldkit";
+import { Command } from "foldkit";
 import { AvailabilityHttpApi } from "../api/availability-http-api.ts";
 import { Message } from "./message.ts";
 
-/** Asks the availability API about up to one batch of domains. */
+/**
+ * Asks the availability API about up to one batch of domains.
+ *
+ * @internal
+ */
 export const CheckDomains = Command.define("CheckDomains", {
   args: { domainNames: Schema.Array(DomainName) },
   messages: [Message.SucceededCheckDomains, Message.FailedCheckDomains],
@@ -19,10 +23,7 @@ export const CheckDomains = Command.define("CheckDomains", {
       });
 
       return Message.SucceededCheckDomains({ checks: report.checks });
-    }).pipe(
-      Effect.catch(() => Effect.succeed(Message.FailedCheckDomains({ domainNames }))),
-      Effect.provide(Http.layer),
-    ),
+    }).pipe(Effect.orElseSucceed(() => Message.FailedCheckDomains({ domainNames }))),
 });
 
 /** Waits until Registro.br's query budget allows the domains to be asked about again. */

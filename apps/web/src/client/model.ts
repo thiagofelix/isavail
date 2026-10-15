@@ -24,7 +24,7 @@ export type DomainRow = typeof DomainRow.Type;
 export const EntryFeedback = defineTaggedUnion({
   Accepted: {},
   NoEntries: {},
-  TooManyEntries: { count: Schema.Number },
+  TooManyEntries: { count: Schema.Finite },
   RejectedEntries: { entries: Schema.Array(Schema.String) },
 });
 

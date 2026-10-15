@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "effect-tsgo patch --no-typescript --oxlint",
     "ready": "vp check && vp run -r test",
     "dev": "vp run --parallel --filter @isavail/relay --filter @isavail/web dev",
     "generate:openapi": "vp run @isavail/web#generate:openapi",
@@ -14,6 +15,7 @@
     "destroy": "vp run @isavail/relay#destroy"
   },
   "devDependencies": {
+    "@effect/tsgo": "catalog:",
     "@foldkit/oxlint-plugin": "0.15.3",
     "@isavail/oxlint-plugin": "workspace:*",
     "@types/node": "^24.19.2",

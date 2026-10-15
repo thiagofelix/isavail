@@ -1,7 +1,7 @@
 import { NodeDatagramSocket } from "@effect/platform-node";
 import { DomainName, type RegistryLookup } from "@isavail/availability-contract";
 import { assert, describe, it } from "@effect/vitest";
-import { Duration, Effect, Layer, Option, Ref } from "effect";
+import { Array, Duration, Effect, Layer, Option, pipe, Ref } from "effect";
 import { RateLimiter } from "effect/persistence";
 import {
   IsavailClient,
@@ -18,7 +18,11 @@ interface ReceivedQuery {
 }
 
 const decodeLatin1 = (payload: Uint8Array): string =>
-  Array.from(payload, (byte) => String.fromCharCode(byte)).join("");
+  pipe(
+    Array.fromIterable(payload),
+    Array.map((byte) => String.fromCharCode(byte)),
+    Array.join(""),
+  );
 
 const encodeLatin1 = (text: string): Uint8Array =>
   Uint8Array.from(text, (character) => character.charCodeAt(0));
@@ -79,7 +83,7 @@ const clientLayerFor = (registryPort: number, settings: Partial<IsavailClientSet
   );
 
 const availabilityTags = (lookups: ReadonlyArray<RegistryLookup>) =>
-  lookups.map((lookup) =>
+  Array.map(lookups, (lookup) =>
     lookup._tag === "Resolved" ? lookup.availability._tag : lookup.failure._tag,
   );
 
@@ -114,7 +118,7 @@ describe("IsavailClient", () => {
 
       assert.deepStrictEqual(availabilityTags(lookups), ["Available", "Registered"]);
       assert.deepStrictEqual(
-        queries.map(({ cookie, domainName }) => [cookie === ISSUED_COOKIE, domainName]),
+        Array.map(queries, ({ cookie, domainName }) => [cookie === ISSUED_COOKIE, domainName]),
         [
           [false, "livre.com.br"],
           [true, "livre.com.br"],
@@ -127,7 +131,8 @@ describe("IsavailClient", () => {
   it.live("answers a batch in request order while queries run concurrently", () =>
     Effect.gen(function* () {
       const registry = yield* startFakeRegistry(answerByDomain);
-      const domainNames = ["um.com.br", "registrada.com.br", "dois.com.br", "tres.com.br"].map(
+      const domainNames = Array.map(
+        ["um.com.br", "registrada.com.br", "dois.com.br", "tres.com.br"],
         (domainName) => DomainName.make(domainName),
       );
 
@@ -136,7 +141,7 @@ describe("IsavailClient", () => {
       );
 
       assert.deepStrictEqual(
-        lookups.map(({ domainName }) => domainName),
+        Array.map(lookups, ({ domainName }) => domainName),
         domainNames,
       );
       assert.deepStrictEqual(availabilityTags(lookups), [
@@ -177,7 +182,7 @@ describe("IsavailClient", () => {
       const queries = yield* Ref.get(registry.receivedQueries);
 
       assert.deepStrictEqual(availabilityTags(lookups), ["RegistryUnreachable"]);
-      assert.strictEqual(queries.filter(({ cookie }) => cookie === ISSUED_COOKIE).length, 2);
+      assert.strictEqual(Array.filter(queries, ({ cookie }) => cookie === ISSUED_COOKIE).length, 2);
     }).pipe(Effect.scoped),
   );
 
@@ -202,7 +207,7 @@ describe("IsavailClient", () => {
           limitedLookup.failure._tag === "RegistryRateLimited" &&
           limitedLookup.failure.retryAfterSeconds === 30,
       );
-      assert.isFalse(queries.some(({ domainName }) => domainName === "livre.com.br"));
+      assert.isFalse(Array.some(queries, ({ domainName }) => domainName === "livre.com.br"));
     }).pipe(Effect.scoped),
   );
 });

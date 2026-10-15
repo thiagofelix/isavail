@@ -1,7 +1,7 @@
 import { DomainAvailability, type DomainName } from "@isavail/availability-contract";
 import { type RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Context, DateTime, Duration, Effect, Layer, Option, Ref, Schema } from "effect";
+import { Array, Context, DateTime, Duration, Effect, Layer, Option, Ref, Schema } from "effect";
 
 /** Remembered answers about domains, so repeated checks do not spend Registro.br's query budget. */
 export const AvailabilityCacheNamespace = Cloudflare.KV.Namespace("AvailabilityCache");
@@ -38,9 +38,13 @@ export interface IAvailabilityCache {
   ) => Effect.Effect<void, never, RuntimeContext>;
 }
 
-/** Provides the contextual availability cache. */
+/**
+ * Provides the contextual availability cache.
+ *
+ * @effect-expect-leaking RuntimeContext Each call reads the Worker invocation it runs in.
+ */
 export class AvailabilityCache extends Context.Service<AvailabilityCache, IAvailabilityCache>()(
-  "@isavail/web/AvailabilityCache",
+  "@isavail/web/api/availability-cache/AvailabilityCache",
 ) {}
 
 /**
@@ -74,7 +78,7 @@ export const makeAvailabilityCache = Effect.gen(function* () {
 
   const readAvailabilities = Effect.fn("AvailabilityCache.readAvailabilities")(
     function* (domainNames: ReadonlyArray<DomainName>) {
-      const values = yield* namespace.get(domainNames.map(cacheKey), "text");
+      const values = yield* namespace.get(Array.map(domainNames, cacheKey), "text");
       const remembered = new Map<DomainName, RememberedAvailability>();
 
       for (const domainName of domainNames) {

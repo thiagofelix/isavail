@@ -1,5 +1,5 @@
 import { DomainAvailability, DomainName, RetryAfterSeconds } from "@isavail/availability-contract";
-import { DateTime } from "effect";
+import { Array, DateTime, pipe } from "effect";
 import { Command, given, message, model, story } from "foldkit/story";
 import { expect, test } from "vite-plus/test";
 import { DomainCheck, DomainCheckFailure } from "../src/api/availability-http-api.ts";
@@ -36,7 +36,7 @@ test("submitting entries checks each distinct domain and reports the entries tha
     given(withEntries("MinhaEmpresa\nminhaempresa.com.br, minha_empresa\nminhaempresa.net.br")),
     message(Message.SubmittedCheckForm()),
     model((nextModel) => {
-      expect(nextModel.rows.map((row) => [row._tag, row.domainName])).toEqual([
+      expect(Array.map(nextModel.rows, (row) => [row._tag, row.domainName])).toEqual([
         ["Checking", "minhaempresa.com.br"],
         ["Checking", "minhaempresa.net.br"],
       ]);
@@ -60,13 +60,16 @@ test("submitting entries checks each distinct domain and reports the entries tha
       }),
     ),
     model((nextModel) => {
-      expect(nextModel.rows.map((row) => row._tag)).toEqual(["Checked", "Checked"]);
+      expect(Array.map(nextModel.rows, (row) => row._tag)).toEqual(["Checked", "Checked"]);
     }),
   );
 });
 
 test("a submission larger than one API batch is sent as several batches", () => {
-  const entries = Array.from({ length: 60 }, (_, index) => `empresa${index}`).join("\n");
+  const entries = pipe(
+    Array.makeBy(60, (index) => `empresa${index}`),
+    Array.join("\n"),
+  );
 
   story(
     update,
@@ -104,7 +107,7 @@ test("rate-limited domains wait for the Registry budget and are checked again au
       }),
     ),
     model((nextModel) => {
-      expect(nextModel.rows.map((row) => row._tag)).toEqual([
+      expect(Array.map(nextModel.rows, (row) => row._tag)).toEqual([
         "Checked",
         "WaitingForRegistryBudget",
       ]);
@@ -117,7 +120,7 @@ test("rate-limited domains wait for the Registry budget and are checked again au
       }),
     ),
     model((nextModel) => {
-      expect(nextModel.rows.map((row) => row._tag)).toEqual(["Checked", "Checking"]);
+      expect(Array.map(nextModel.rows, (row) => row._tag)).toEqual(["Checked", "Checking"]);
     }),
     Command.expectExact(CheckDomains({ domainNames: [DomainName.make("fila.com.br")] })),
     Command.resolve(
@@ -125,7 +128,7 @@ test("rate-limited domains wait for the Registry budget and are checked again au
       Message.SucceededCheckDomains({ checks: [available("fila.com.br")] }),
     ),
     model((nextModel) => {
-      expect(nextModel.rows.map((row) => row._tag)).toEqual(["Checked", "Checked"]);
+      expect(Array.map(nextModel.rows, (row) => row._tag)).toEqual(["Checked", "Checked"]);
     }),
   );
 });
@@ -166,7 +169,7 @@ test("choosing a suggested category adds and checks it once", () => {
     ),
     message(Message.ClickedSuggestedAlternative({ domainName: suggestion })),
     model((nextModel) => {
-      expect(nextModel.rows.map((row) => [row._tag, row.domainName])).toEqual([
+      expect(Array.map(nextModel.rows, (row) => [row._tag, row.domainName])).toEqual([
         ["Checked", suggestion],
       ]);
     }),

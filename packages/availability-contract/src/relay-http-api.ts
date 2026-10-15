@@ -87,15 +87,16 @@ export const RegistryLookupResult = Schema.Struct({
 export type RegistryLookupResult = typeof RegistryLookupResult.Type;
 
 /** The caller did not present the relay access token. */
-export class RelayAccessDenied extends Schema.TaggedError<RelayAccessDenied>()(
-  "RelayAccessDenied",
-  { message: Schema.String },
-  { httpApiStatus: 401 },
-) {}
+export class RelayAccessDenied extends Schema.TaggedError<
+  RelayAccessDenied,
+  { readonly brand: unique symbol }
+>()("RelayAccessDenied", { message: Schema.String }, { httpApiStatus: 401 }) {}
 
 /**
  * Requires the relay access token as a bearer credential. The relay serves
  * only the web app's API Worker, which holds the token as a secret.
+ *
+ * @stability unstable
  */
 export class RelayAuthorization extends HttpApiMiddleware.Service<
   RelayAuthorization,
@@ -106,7 +107,11 @@ export class RelayAuthorization extends HttpApiMiddleware.Service<
   error: RelayAccessDenied,
 }) {}
 
-/** Endpoints that ask Registro.br about domains. */
+/**
+ * Endpoints that ask Registro.br about domains.
+ *
+ * @stability unstable
+ */
 export class RegistryLookupsHttpApiGroup extends HttpApiGroup.make("registryLookups")
   .add(
     HttpApiEndpoint.post("lookUpDomains", "/v1/lookups", {
@@ -122,14 +127,22 @@ export class RegistryLookupsHttpApiGroup extends HttpApiGroup.make("registryLook
   )
   .middleware(RelayAuthorization) {}
 
-/** Endpoints the hosting platform uses to check the relay. */
+/**
+ * Endpoints the hosting platform uses to check the relay.
+ *
+ * @stability unstable
+ */
 export class RelaySystemHttpApiGroup extends HttpApiGroup.make("system", { topLevel: true }).add(
   HttpApiEndpoint.get("checkHealth", "/v1/health", {
     success: HttpApiSchema.NoContent,
   }),
 ) {}
 
-/** HTTP interface of the Registro.br relay. */
+/**
+ * HTTP interface of the Registro.br relay.
+ *
+ * @stability unstable
+ */
 export class RegistryRelayHttpApi extends HttpApi.make("RegistryRelayHttpApi")
   .add(RegistryLookupsHttpApiGroup)
   .add(RelaySystemHttpApiGroup)

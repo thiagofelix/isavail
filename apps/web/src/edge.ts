@@ -8,6 +8,11 @@ import type { WebsiteEnv } from "../alchemy.run.ts";
 
 const API_PATH_PREFIX = "/v1/";
 
+/**
+ * Sends `/v1/*` to the availability API Worker and every other path to the static assets.
+ *
+ * @internal
+ */
 export default {
   fetch(request: Request, env: WebsiteEnv): Promise<Response> {
     return new URL(request.url).pathname.startsWith(API_PATH_PREFIX)

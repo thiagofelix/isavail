@@ -1,6 +1,6 @@
 import type { DomainName, RegistryLookup } from "@isavail/availability-contract";
 import type { RuntimeContext } from "alchemy";
-import { Context, Effect, Layer, Option } from "effect";
+import { Array, Context, Effect, Layer, Option } from "effect";
 import {
   AvailabilityCache,
   availabilityCacheLayer,
@@ -36,7 +36,7 @@ export interface IAvailabilityChecker {
 export class AvailabilityChecker extends Context.Service<
   AvailabilityChecker,
   IAvailabilityChecker
->()("@isavail/web/AvailabilityChecker") {}
+>()("@isavail/web/api/availability-checker/AvailabilityChecker") {}
 
 const rememberedCheck = (domainName: DomainName, remembered: RememberedAvailability): DomainCheck =>
   DomainCheck.cases.Checked.make({ domainName, ...remembered, servedFromCache: true });
@@ -65,11 +65,11 @@ export const makeAvailabilityChecker = Effect.gen(function* () {
 
   const askRegistro = (domainNames: ReadonlyArray<DomainName>) =>
     relay.lookUpDomains(domainNames).pipe(
-      Effect.map((lookups) => lookups.map(lookupCheck)),
+      Effect.map(Array.map(lookupCheck)),
       Effect.catchTag("RegistryRelayUnavailable", (error) =>
         Effect.logError("Could not reach the Registro.br relay", error.reason, error.message).pipe(
           Effect.as(
-            domainNames.map((domainName) =>
+            Array.map(domainNames, (domainName) =>
               DomainCheck.cases.NotChecked.make({
                 domainName,
                 failure: DomainCheckFailure.cases.LookupServiceUnavailable.make({}),
@@ -84,19 +84,24 @@ export const makeAvailabilityChecker = Effect.gen(function* () {
     domainNames: ReadonlyArray<DomainName>,
   ) {
     const remembered = yield* cache.readAvailabilities(domainNames);
-    const unknownDomainNames = domainNames.filter((domainName) => !remembered.has(domainName));
+    const unknownDomainNames = Array.filter(
+      domainNames,
+      (domainName) => !remembered.has(domainName),
+    );
     const freshChecks =
       unknownDomainNames.length === 0 ? [] : yield* askRegistro(unknownDomainNames);
-    const freshChecksByDomain = new Map(freshChecks.map((check) => [check.domainName, check]));
+    const freshChecksByDomain = new Map(
+      Array.map(freshChecks, (check) => [check.domainName, check]),
+    );
 
-    yield* cache.rememberAvailabilities(freshChecks.flatMap(rememberedAnswerOf));
+    yield* cache.rememberAvailabilities(Array.flatMap(freshChecks, rememberedAnswerOf));
 
     yield* Effect.annotateCurrentSpan({
       "availability.domain_count": domainNames.length,
       "availability.cached_count": remembered.size,
     });
 
-    return domainNames.map((domainName) =>
+    return Array.map(domainNames, (domainName) =>
       Option.fromUndefinedOr(remembered.get(domainName)).pipe(
         Option.map((answer) => rememberedCheck(domainName, answer)),
         Option.orElse(() => Option.fromUndefinedOr(freshChecksByDomain.get(domainName))),

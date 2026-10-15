@@ -10,6 +10,7 @@ import {
   RetryAfterSeconds,
 } from "@isavail/availability-contract";
 import {
+  Array,
   Config,
   Context,
   DateTime,
@@ -20,7 +21,7 @@ import {
   Redacted,
   Schema,
 } from "effect";
-import { FetchHttpClient, HttpClientRequest } from "effect/http";
+import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 import { HttpApiClient, HttpApiMiddleware } from "effect/http-api";
 
 /** Environment variable that carries the relay base URL to the API Worker. */
@@ -37,13 +38,13 @@ const RELAY_REQUEST_TIMEOUT = Duration.seconds(15);
  * - `Unreachable`: the relay did not answer in time or the connection failed.
  * - `UnexpectedResponse`: the relay answered in a form the Worker could not read.
  */
-export class RegistryRelayUnavailable extends Schema.TaggedError<RegistryRelayUnavailable>()(
-  "RegistryRelayUnavailable",
-  {
-    reason: Schema.Literals(["NotConfigured", "AccessDenied", "Unreachable", "UnexpectedResponse"]),
-    message: Schema.String,
-  },
-) {}
+export class RegistryRelayUnavailable extends Schema.TaggedError<
+  RegistryRelayUnavailable,
+  { readonly brand: unique symbol }
+>()("RegistryRelayUnavailable", {
+  reason: Schema.Literals(["NotConfigured", "AccessDenied", "Unreachable", "UnexpectedResponse"]),
+  message: Schema.String,
+}) {}
 
 /** Asks the Registro.br relay about domains on behalf of the API Worker. */
 export interface IRegistryRelayClient {
@@ -62,88 +63,105 @@ export interface IRegistryRelayClient {
 export class RegistryRelayClient extends Context.Service<
   RegistryRelayClient,
   IRegistryRelayClient
->()("@isavail/web/RegistryRelayClient") {}
+>()("@isavail/web/api/registry-relay-client/RegistryRelayClient") {}
 
 const relayUnavailable = (reason: RegistryRelayUnavailable["reason"], message: string) =>
-  new RegistryRelayUnavailable({ reason, message });
+  RegistryRelayUnavailable.make({ reason, message });
 
 /**
  * The relay URL and token are read from the Worker environment on each call,
  * not while the Worker starts, because Alchemy also evaluates the Worker
  * program while planning a deployment, where those bindings do not exist yet.
  */
-const lookUpDomainsThroughRelay = Effect.fn("RegistryRelayClient.lookUpDomains")(
-  function* (domainNames: ReadonlyArray<DomainName>) {
-    const baseUrl = yield* Config.String(REGISTRY_RELAY_URL_VARIABLE);
-    const accessToken = yield* Config.Redacted(REGISTRY_RELAY_ACCESS_TOKEN_VARIABLE);
+const lookUpDomainsThroughRelay = (httpClient: HttpClient.HttpClient) =>
+  Effect.fn("RegistryRelayClient.lookUpDomains")(
+    function* (domainNames: ReadonlyArray<DomainName>) {
+      const baseUrl = yield* Config.String(REGISTRY_RELAY_URL_VARIABLE);
+      const accessToken = yield* Config.Redacted(REGISTRY_RELAY_ACCESS_TOKEN_VARIABLE);
 
-    const client = yield* HttpApiClient.make(RegistryRelayHttpApi, { baseUrl }).pipe(
-      Effect.provide(
-        HttpApiMiddleware.layerClient(RelayAuthorization, ({ next, request }) =>
-          next(HttpClientRequest.bearerToken(request, Redacted.value(accessToken))),
+      const client = yield* HttpApiClient.makeWith(RegistryRelayHttpApi, {
+        baseUrl,
+        httpClient,
+      }).pipe(
+        // oxlint-disable-next-line effecttsgo/strict-effect-provide -- The token exists only per call, so its middleware layer does too.
+        Effect.provide(
+          HttpApiMiddleware.layerClient(RelayAuthorization, ({ next, request }) =>
+            next(HttpClientRequest.bearerToken(request, Redacted.value(accessToken))),
+          ),
         ),
-      ),
-    );
+      );
 
-    const { lookups } = yield* client.registryLookups
-      .lookUpDomains({ payload: { domainNames } })
-      .pipe(Effect.timeout(RELAY_REQUEST_TIMEOUT));
+      const { lookups } = yield* client.registryLookups
+        .lookUpDomains({ payload: { domainNames } })
+        .pipe(Effect.timeout(RELAY_REQUEST_TIMEOUT));
 
-    return lookups;
-  },
-  Effect.catchTags({
-    ConfigError: () =>
-      Effect.fail(
-        relayUnavailable(
-          "NotConfigured",
-          `The API Worker has no ${REGISTRY_RELAY_URL_VARIABLE} or ${REGISTRY_RELAY_ACCESS_TOKEN_VARIABLE} binding. Deploy the relay Stack for this stage, then redeploy the web Stack.`,
+      return lookups;
+    },
+    Effect.catchTags({
+      ConfigError: () =>
+        Effect.fail(
+          relayUnavailable(
+            "NotConfigured",
+            `The API Worker has no ${REGISTRY_RELAY_URL_VARIABLE} or ${REGISTRY_RELAY_ACCESS_TOKEN_VARIABLE} binding. Deploy the relay Stack for this stage, then redeploy the web Stack.`,
+          ),
         ),
-      ),
-    RelayAccessDenied: () =>
-      Effect.fail(
-        relayUnavailable(
-          "AccessDenied",
-          "The relay rejected the API Worker's access token. Redeploy the web Stack so it reads the relay Stack's current token.",
+      RelayAccessDenied: () =>
+        Effect.fail(
+          relayUnavailable(
+            "AccessDenied",
+            "The relay rejected the API Worker's access token. Redeploy the web Stack so it reads the relay Stack's current token.",
+          ),
         ),
-      ),
-    TimeoutError: () =>
-      Effect.fail(
-        relayUnavailable(
-          "Unreachable",
-          `The relay did not answer within ${Duration.format(RELAY_REQUEST_TIMEOUT)}.`,
+      TimeoutError: () =>
+        Effect.fail(
+          relayUnavailable(
+            "Unreachable",
+            `The relay did not answer within ${Duration.format(RELAY_REQUEST_TIMEOUT)}.`,
+          ),
         ),
-      ),
-    HttpClientError: (error) =>
-      Effect.fail(
-        relayUnavailable(
-          error.reason._tag === "StatusCodeError" ? "UnexpectedResponse" : "Unreachable",
-          `The relay request failed: ${error.message}`,
+      HttpClientError: (error) =>
+        Effect.fail(
+          relayUnavailable(
+            error.reason._tag === "StatusCodeError" ? "UnexpectedResponse" : "Unreachable",
+            `The relay request failed: ${error.message}`,
+          ),
         ),
-      ),
-    SchemaError: (error) =>
-      Effect.fail(
-        relayUnavailable(
-          "UnexpectedResponse",
-          `The relay answer could not be read: ${error.message}`,
+      SchemaError: (error) =>
+        Effect.fail(
+          relayUnavailable(
+            "UnexpectedResponse",
+            `The relay answer could not be read: ${error.message}`,
+          ),
         ),
-      ),
-  }),
-  Effect.provide(FetchHttpClient.layer),
-);
+    }),
+  );
 
-/** Constructs the relay client. */
-export const makeRegistryRelayClient = Effect.succeed(
-  RegistryRelayClient.of({ lookUpDomains: lookUpDomainsThroughRelay }),
-);
+/**
+ * Constructs the relay client over the contextual `HttpClient`.
+ *
+ * @internal
+ */
+export const makeRegistryRelayClient = Effect.gen(function* () {
+  const httpClient = yield* HttpClient.HttpClient;
 
-/** Provides the relay client; it reads its relay URL and token from the contextual `ConfigProvider`. */
+  return RegistryRelayClient.of({ lookUpDomains: lookUpDomainsThroughRelay(httpClient) });
+});
+
+/**
+ * Provides the relay client; it reads its relay URL and token from the
+ * contextual `ConfigProvider`. The caller provides `HttpClient`.
+ *
+ * @internal
+ */
 export const registryRelayClientLayerWithoutDependencies = Layer.effect(
   RegistryRelayClient,
   makeRegistryRelayClient,
 );
 
 /** Provides the relay client that calls the relay over HTTPS with the Worker's fetch. */
-export const registryRelayClientLayer = registryRelayClientLayerWithoutDependencies;
+export const registryRelayClientLayer = registryRelayClientLayerWithoutDependencies.pipe(
+  Layer.provide(FetchHttpClient.layer),
+);
 
 const testRelayRecords: ReadonlyMap<string, DomainAvailability> = new Map<
   string,
@@ -184,7 +202,7 @@ export const registryRelayClientTestLayer = Layer.succeed(
       Effect.gen(function* () {
         const checkedAt = yield* DateTime.now;
 
-        return domainNames.map((domainName) =>
+        return Array.map(domainNames, (domainName) =>
           domainName === TEST_RATE_LIMITED_DOMAIN
             ? RegistryLookup.cases.Failed.make({
                 domainName,

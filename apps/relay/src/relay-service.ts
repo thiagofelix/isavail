@@ -69,6 +69,8 @@ export const RegistryRelayTelemetry = Effect.gen(function* () {
  * It runs a single Machine because Registro.br issues its cookie and its query
  * budget per source address; a second Machine would need a shared rate-limit
  * store.
+ *
+ * @internal
  */
 export default class RegistryRelayService extends Fly.Service<RegistryRelayService>()(
   "RegistryRelay",

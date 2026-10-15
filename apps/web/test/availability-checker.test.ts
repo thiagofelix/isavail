@@ -1,7 +1,7 @@
 import { DomainName } from "@isavail/availability-contract";
 import { assert, describe, it } from "@effect/vitest";
 import { RuntimeContext } from "alchemy";
-import { Duration, Effect, Layer } from "effect";
+import { Array, Duration, Effect, Layer } from "effect";
 import { TestClock } from "effect/testing";
 import { availabilityCacheTestLayer } from "../src/api/availability-cache.ts";
 import {
@@ -17,10 +17,10 @@ import {
 
 const checkTags = (domainNames: ReadonlyArray<string>) =>
   AvailabilityChecker.use((checker) =>
-    checker.checkDomains(domainNames.map((domainName) => DomainName.make(domainName))),
+    checker.checkDomains(Array.map(domainNames, (domainName) => DomainName.make(domainName))),
   ).pipe(
     Effect.map((checks) =>
-      checks.map((check) =>
+      Array.map(checks, (check) =>
         check._tag === "Checked"
           ? `${check.availability._tag}${check.servedFromCache ? " (cache)" : ""}`
           : check.failure._tag,
@@ -33,7 +33,7 @@ const unavailableRelayLayer = Layer.succeed(
   RegistryRelayClient.of({
     lookUpDomains: () =>
       Effect.fail(
-        new RegistryRelayUnavailable({
+        RegistryRelayUnavailable.make({
           reason: "Unreachable",
           message: "The relay did not answer.",
         }),
@@ -78,12 +78,12 @@ describe("AvailabilityChecker", () => {
       Effect.map((tags) =>
         assert.deepStrictEqual(tags, ["LookupServiceUnavailable", "LookupServiceUnavailable"]),
       ),
-      Effect.provide(
+      Effect.provide([
         availabilityCheckerLayerWithoutDependencies.pipe(
           Layer.provide([availabilityCacheTestLayer, unavailableRelayLayer]),
         ),
-      ),
-      Effect.provide(RuntimeContext.phantom),
+        RuntimeContext.phantom,
+      ]),
     ),
   );
 });

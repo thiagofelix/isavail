@@ -1,7 +1,35 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["node"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "barrelImportPackages": ["effect"],
+        "allowedUnstableApis": [
+          "@isavail/availability-contract/relay-http-api",
+          "@effect/platform-node/NodeHttpServer",
+          "@effect/platform-node/NodeRuntime",
+          "@effect/vitest",
+          "effect/http-api/HttpApiBuilder",
+          "effect/http-api/HttpApiMiddleware",
+          "effect/http-api/HttpApiTest",
+          "effect/http/FetchHttpClient",
+          "effect/http/HttpClientRequest",
+          "effect/http/HttpMiddleware",
+          "effect/http/HttpRouter",
+          "effect/http/HttpServer",
+          "effect/observability/OtlpLogger",
+          "effect/observability/OtlpSerialization",
+          "effect/observability/OtlpTracer",
+          "effect/persistence/RateLimiter"
+        ],
+        "allowedExperimentalApis": [
+          "@effect/platform-node-shared/NodeDatagramSocket",
+          "effect/socket/DatagramSocket"
+        ]
+      }
+    ]
   },
   "include": ["src", "test", "alchemy.run.ts", "vite.config.ts"]
 }

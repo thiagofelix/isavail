@@ -5,7 +5,7 @@ import {
   RelayAuthorization,
 } from "@isavail/availability-contract";
 import { assert, describe, layer } from "@effect/vitest";
-import { ConfigProvider, Effect, Layer } from "effect";
+import { Array, ConfigProvider, Effect, Layer } from "effect";
 import { HttpClientRequest, HttpServer } from "effect/http";
 import { HttpApiMiddleware, HttpApiTest } from "effect/http-api";
 import { isavailClientTestLayer } from "../src/isavail-client.ts";
@@ -43,7 +43,7 @@ layer(relayRoutesLayer)("Registro.br relay HTTP API", (it) => {
         });
 
         assert.deepStrictEqual(
-          lookups.map((lookup) =>
+          Array.map(lookups, (lookup) =>
             lookup._tag === "Resolved" ? [lookup.domainName, lookup.availability._tag] : [],
           ),
           [

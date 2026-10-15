@@ -2,6 +2,7 @@ import type { DomainName } from "@isavail/availability-contract";
 import { Button, Textarea } from "@foldkit/ui";
 import { Array, Option, pipe } from "effect";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
+import { OPENAPI_PATH } from "../api/availability-http-api.ts";
 import { MAX_ENTRIES_PER_SUBMISSION } from "./main.ts";
 import { Message } from "./message.ts";
 import { DomainRow, EntryFeedback, type Model } from "./model.ts";
@@ -253,7 +254,7 @@ const agentsView = (h: HtmlBuilder<Message>): Html =>
           " ou ",
           h.code([], ["GET /v1/domains/minhaempresa.com.br/availability"]),
           ". O contrato completo está em ",
-          h.a([h.Href("/v1/openapi.json")], ["/v1/openapi.json"]),
+          h.a([h.Href(OPENAPI_PATH)], [OPENAPI_PATH]),
           ".",
         ],
       ),
@@ -261,6 +262,7 @@ const agentsView = (h: HtmlBuilder<Message>): Html =>
   );
 
 /** Renders the page. */
+// oxlint-disable-next-line effecttsgo/missing-pipeable-signature -- Foldkit's runtime calls view(model, h).
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: "isavail — disponibilidade de domínios .br",
   body: h.div(

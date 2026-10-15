@@ -5,6 +5,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api
 /** Largest number of domains one availability check may ask about. */
 export const MAX_DOMAIN_CHECK_BATCH_SIZE = 50;
 
+/** Path the API serves its generated OpenAPI document on. */
+export const OPENAPI_PATH = "/v1/openapi.json";
+
 /** Correlates one public API response with the service's logs and traces. */
 export const RequestId = Schema.String.check(
   Schema.isPattern(/^req_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
@@ -96,7 +99,10 @@ export const DomainNameViolation = Schema.Struct({
 export type DomainNameViolation = typeof DomainNameViolation.Type;
 
 /** At least one requested entry is not a `.br` domain name. Nothing was checked. */
-export class InvalidDomainNames extends Schema.TaggedError<InvalidDomainNames>()(
+export class InvalidDomainNames extends Schema.TaggedError<
+  InvalidDomainNames,
+  { readonly brand: unique symbol }
+>()(
   "InvalidDomainNames",
   {
     code: Schema.Literal("InvalidDomainNames"),
@@ -108,7 +114,11 @@ export class InvalidDomainNames extends Schema.TaggedError<InvalidDomainNames>()
   { httpApiStatus: 400 },
 ) {}
 
-/** Endpoints that check whether `.br` domains can be registered. */
+/**
+ * Endpoints that check whether `.br` domains can be registered.
+ *
+ * @internal
+ */
 export class DomainAvailabilityHttpApiGroup extends HttpApiGroup.make("domainAvailability")
   .add(
     HttpApiEndpoint.post("checkDomains", "/v1/availability-checks", {
@@ -141,7 +151,11 @@ export class DomainAvailabilityHttpApiGroup extends HttpApiGroup.make("domainAva
     ),
   ) {}
 
-/** Public HTTP interface of the domain availability service. */
+/**
+ * Public HTTP interface of the domain availability service.
+ *
+ * @internal
+ */
 export class AvailabilityHttpApi extends HttpApi.make("AvailabilityHttpApi")
   .add(DomainAvailabilityHttpApiGroup)
   .annotateMerge(

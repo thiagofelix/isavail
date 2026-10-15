@@ -9,6 +9,7 @@ catalog:
   "@effect/platform-browser": 4.0.5
   "@effect/platform-node": 4.0.5
   "@effect/platform-node-shared": 4.0.5
+  "@effect/tsgo": 0.53.1
   "@effect/vitest": 4.0.5
   "@foldkit/ui": 0.168.0
   "@foldkit/vite-plugin": 0.27.1
@@ -46,6 +47,14 @@ minimumReleaseAgeExclude:
   - "@effect/platform-node@4.0.5"
   - "@effect/vitest@4.0.5"
   - effect@4.0.5
+  - "@effect/tsgo-darwin-arm64@0.53.1"
+  - "@effect/tsgo-darwin-x64@0.53.1"
+  - "@effect/tsgo-linux-arm64@0.53.1"
+  - "@effect/tsgo-linux-arm@0.53.1"
+  - "@effect/tsgo-linux-x64@0.53.1"
+  - "@effect/tsgo-win32-arm64@0.53.1"
+  - "@effect/tsgo-win32-x64@0.53.1"
+  - "@effect/tsgo@0.53.1"
 
 allowBuilds:
   workerd: true

@@ -20,7 +20,7 @@
 import type * as Alchemy from "alchemy";
 import * as Axiom from "alchemy/Axiom";
 import * as Output from "alchemy/Output";
-import { Effect } from "effect";
+import { Array, Effect } from "effect";
 import { TELEMETRY_SERVICE_NAMES } from "../telemetry-services.ts";
 import { TracesDataset } from "./telemetry-datasets.ts";
 
@@ -200,25 +200,31 @@ export const TRACES_DASHBOARD_CHARTS: ReadonlyArray<TracesChart> = [
  * The full APL of a chart: the dashboard's filter parameters, the traces
  * dataset narrowed by them, then the chart's `pipeline`.
  */
-export const tracesChartApl = (dataset: string, pipeline: string): string =>
-  [
-    `declare query_parameters (${STAGE_FILTER}:string = "", ${SERVICE_FILTER}:string = "");`,
-    `['${dataset}']`,
-    `| where isempty(${STAGE_FILTER}) or tostring(['resource.custom']['alchemy.stage']) == ${STAGE_FILTER}`,
-    `| where isempty(${SERVICE_FILTER}) or ['service.name'] == ${SERVICE_FILTER}`,
-    pipeline,
-  ].join("\n");
+const tracesChartApl = (dataset: string, pipeline: string): string =>
+  Array.join(
+    [
+      `declare query_parameters (${STAGE_FILTER}:string = "", ${SERVICE_FILTER}:string = "");`,
+      `['${dataset}']`,
+      `| where isempty(${STAGE_FILTER}) or tostring(['resource.custom']['alchemy.stage']) == ${STAGE_FILTER}`,
+      `| where isempty(${SERVICE_FILTER}) or ['service.name'] == ${SERVICE_FILTER}`,
+      pipeline,
+    ],
+    "\n",
+  );
 
 /** APL that lists every stage seen in the dataset, as filter options. */
-export const stageOptionsApl = (dataset: string): string =>
-  [
-    `['${dataset}']`,
-    `| extend stage_name = tostring(['resource.custom']['alchemy.stage'])`,
-    `| where stage_name != ""`,
-    `| distinct stage_name`,
-    `| sort by stage_name asc`,
-    `| project key = stage_name, value = stage_name`,
-  ].join("\n");
+const stageOptionsApl = (dataset: string): string =>
+  Array.join(
+    [
+      `['${dataset}']`,
+      `| extend stage_name = tostring(['resource.custom']['alchemy.stage'])`,
+      `| where stage_name != ""`,
+      `| distinct stage_name`,
+      `| sort by stage_name asc`,
+      `| project key = stage_name, value = stage_name`,
+    ],
+    "\n",
+  );
 
 /** One chart of the Axiom dashboard document. */
 type DashboardChart = Axiom.DashboardProps["dashboard"]["charts"][number];
@@ -266,7 +272,7 @@ export const tracesDashboardCharts = (dataset: string): Array<DashboardChart> =>
       },
     ],
   },
-  ...TRACES_DASHBOARD_CHARTS.map((chart) => toDashboardChart(chart, dataset)),
+  ...Array.map(TRACES_DASHBOARD_CHARTS, (chart) => toDashboardChart(chart, dataset)),
 ];
 
 /**
@@ -295,7 +301,7 @@ export const TracesDashboard = Axiom.Dashboard(
         charts: traces.name.pipe(Output.map(tracesDashboardCharts)),
         layout: [
           { i: "filters", x: 0, y: 0, w: 12, h: 2 },
-          ...TRACES_DASHBOARD_CHARTS.map((chart) => ({ i: chart.id, ...chart.cell })),
+          ...Array.map(TRACES_DASHBOARD_CHARTS, (chart) => ({ i: chart.id, ...chart.cell })),
         ],
       },
     };

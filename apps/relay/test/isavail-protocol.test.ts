@@ -1,6 +1,6 @@
 import { CalendarDate, CompetingTicketCount, DomainName } from "@isavail/availability-contract";
 import { assert, describe, it } from "@effect/vitest";
-import { DateTime, Effect, Exit, Option } from "effect";
+import { Array, DateTime, Effect, Exit, Option } from "effect";
 import {
   decodeIsavailResponse,
   encodeIsavailQuery,
@@ -32,8 +32,8 @@ describe("encodeIsavailQuery", () => {
     });
 
     assert.deepStrictEqual(
-      Array.from(payload),
-      Array.from(encodeLatin1("2 8a6e52837fc2c68f7a4a 0 123456789 açaí.com.br 1")),
+      Array.fromIterable(payload),
+      Array.fromIterable(encodeLatin1("2 8a6e52837fc2c68f7a4a 0 123456789 açaí.com.br 1")),
     );
     assert.strictEqual(
       payload.byteLength,
@@ -125,7 +125,7 @@ describe("decodeIsavailResponse", () => {
         suggestedAlternatives: [],
       });
       assert.deepStrictEqual(
-        [invalidDomain, invalidCategory, invalidQuery].map(({ availability }) =>
+        Array.map([invalidDomain, invalidCategory, invalidQuery], ({ availability }) =>
           availability._tag === "Unavailable" ? availability.reason : availability._tag,
         ),
         ["InvalidDomain", "InvalidCategory", "InvalidDomain"],

@@ -13,6 +13,8 @@ import { registryRelayWorkerEnv } from "./registry-relay-connection.ts";
  * Worker runtime installs an OTLP exporter for every request from the standard
  * `OTEL_*` bindings and flushes it in `waitUntil` after the response; the
  * header bindings carry the ingest token and are bound as secrets.
+ *
+ * @internal
  */
 export default class AvailabilityApiWorker extends Cloudflare.Worker<AvailabilityApiWorker>()(
   "AvailabilityApi",

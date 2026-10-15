@@ -37,6 +37,8 @@ const relayTelemetryLayer = Layer.mergeAll(
  * runtime (or to `relay-local-server.ts`), where no exporter is installed. The
  * middleware continues the caller's `traceparent`, which joins the relay's
  * spans to the API Worker's trace.
+ *
+ * @internal
  */
 export const tracedRelayHttpApp = Effect.gen(function* () {
   const telemetry = yield* Layer.build(relayTelemetryLayer);
@@ -44,5 +46,6 @@ export const tracedRelayHttpApp = Effect.gen(function* () {
     Effect.provideContext(telemetry),
   );
 
+  // oxlint-disable-next-line effecttsgo/return-effect-in-gen -- The result is the HTTP app itself, which callers serve.
   return HttpMiddleware.tracer(httpApp).pipe(Effect.provideContext(telemetry));
 });

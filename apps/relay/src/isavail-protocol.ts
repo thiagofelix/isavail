@@ -1,5 +1,5 @@
 import { DomainAvailability, DomainName, UnavailableReason } from "@isavail/availability-contract";
-import { Array, Effect, Match, Option, Schema } from "effect";
+import { Array, Effect, Match, Option, pipe, Schema } from "effect";
 
 /**
  * ISAVAIL protocol version this client speaks. Version 2 adds suggestions of
@@ -83,21 +83,23 @@ export const IsavailResponse = Schema.TaggedUnion({
 export type IsavailResponse = typeof IsavailResponse.Type;
 
 /** A datagram that does not follow the ISAVAIL response format. */
-export class IsavailResponseUnreadable extends Schema.TaggedError<IsavailResponseUnreadable>()(
-  "IsavailResponseUnreadable",
-  {
-    message: Schema.String,
-    response: Schema.String,
-  },
-) {}
+export class IsavailResponseUnreadable extends Schema.TaggedError<
+  IsavailResponseUnreadable,
+  { readonly brand: unique symbol }
+>()("IsavailResponseUnreadable", {
+  message: Schema.String,
+  response: Schema.String,
+}) {}
 
 const encodeIsoLatin1 = (text: string): Uint8Array =>
   Uint8Array.from(text, (character) => character.charCodeAt(0));
 
 const decodeIsoLatin1 = (payload: Uint8Array): string =>
-  Array.fromIterable(payload)
-    .map((byte) => String.fromCharCode(byte))
-    .join("");
+  pipe(
+    Array.fromIterable(payload),
+    Array.map((byte) => String.fromCharCode(byte)),
+    Array.join(""),
+  );
 
 /**
  * Encodes an ISAVAIL query datagram.
@@ -140,7 +142,7 @@ const classifyUnavailableReason = (registryMessage: string): UnavailableReason =
   );
 
 const splitFields = (line: string): Array<string> =>
-  line === "" ? [] : line.split("|").map((field) => field.trim());
+  line === "" ? [] : Array.map(line.split("|"), (field) => field.trim());
 
 /**
  * Registro.br sends release timestamps as `YYYY-MM-DD HH:MM:SS` without a zone.
@@ -162,7 +164,7 @@ class ResponseLines {
   }
 
   unreadable(message: string): IsavailResponseUnreadable {
-    return new IsavailResponseUnreadable({ message, response: this.response });
+    return IsavailResponseUnreadable.make({ message, response: this.response });
   }
 
   optionalLine(index: number): string {
@@ -191,7 +193,7 @@ const suggestedAlternativesFrom = (
 ): Array<typeof DomainName.Encoded> => {
   const name = Option.getOrElse(Array.head(domainName.split(".")), () => domainName);
 
-  return splitFields(line).map((category) => `${name}.${category}.br`);
+  return Array.map(splitFields(line), (category) => `${name}.${category}.br`);
 };
 
 const releaseWindowFrom = (
@@ -203,7 +205,7 @@ const releaseWindowFrom = (
 > =>
   Effect.gen(function* () {
     const fields = splitFields(line);
-    const timestamps = Array.getSomes(fields.map(toIsoTimestamp));
+    const timestamps = Array.getSomes(Array.map(fields, toIsoTimestamp));
     const [startsAt, endsAt] = timestamps;
 
     if (startsAt === undefined || endsAt === undefined || timestamps.length !== fields.length) {
@@ -327,13 +329,24 @@ export const decodeIsavailResponse = (
 ): Effect.Effect<IsavailResponse, IsavailResponseUnreadable> =>
   Effect.gen(function* () {
     const response = decodeIsoLatin1(payload);
-    const lines = response
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => !line.startsWith("%"));
-    const headerIndex = lines.findIndex((line) => line !== "");
-    const header = Option.getOrElse(Array.get(lines, headerIndex), () => "");
-    const responseLines = new ResponseLines(response, lines.slice(headerIndex + 1));
+    const lines = pipe(
+      response.split(/\r?\n/),
+      Array.map((line) => line.trim()),
+      Array.filter((line) => !line.startsWith("%")),
+    );
+    const headerIndex = Array.findFirstIndex(lines, (line) => line !== "");
+    const header = pipe(
+      headerIndex,
+      Option.flatMap((index) => Array.get(lines, index)),
+      Option.getOrElse(() => ""),
+    );
+    const responseLines = new ResponseLines(
+      response,
+      Option.match(headerIndex, {
+        onNone: () => lines,
+        onSome: (index) => lines.slice(index + 1),
+      }),
+    );
 
     const cookieHeader = COOKIE_HEADER.exec(header);
     if (cookieHeader !== null) {

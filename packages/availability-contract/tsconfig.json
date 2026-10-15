@@ -1,7 +1,24 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": []
+    "types": [],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "barrelImportPackages": ["effect"],
+        "allowedUnstableApis": [
+          "@isavail/availability-contract/relay-http-api",
+          "@effect/vitest",
+          "effect/http-api/HttpApi",
+          "effect/http-api/HttpApiEndpoint",
+          "effect/http-api/HttpApiGroup",
+          "effect/http-api/HttpApiMiddleware",
+          "effect/http-api/HttpApiSchema",
+          "effect/http-api/HttpApiSecurity",
+          "effect/http-api/OpenApi"
+        ]
+      }
+    ]
   },
   "include": ["src", "test", "vite.config.ts"]
 }

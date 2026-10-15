@@ -14,7 +14,11 @@ import { Effect } from "effect";
 import AvailabilityApiWorker from "./src/api/availability-api-worker.ts";
 import { AvailabilityCacheNamespace } from "./src/api/availability-cache.ts";
 
-/** The Foldkit website. `/v1/*` runs its Worker entry, which forwards to the API Worker. */
+/**
+ * The Foldkit website. `/v1/*` runs its Worker entry, which forwards to the API Worker.
+ *
+ * @internal
+ */
 export class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   main: "src/edge.ts",
   env: { AVAILABILITY_API: AvailabilityApiWorker },
@@ -22,7 +26,11 @@ export class Website extends Cloudflare.Website.Foldkit<Website>()("Website", {
   dev: { host: "127.0.0.1", port: 5180, strictPort: true },
 }) {}
 
-/** Bindings the website's Worker entry receives. */
+/**
+ * Bindings the website's Worker entry receives.
+ *
+ * @internal
+ */
 export type WebsiteEnv = Cloudflare.InferEnv<typeof Website>;
 
 export default Alchemy.Stack(

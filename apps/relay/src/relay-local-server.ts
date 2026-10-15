@@ -14,6 +14,7 @@ import {
 } from "@isavail/availability-contract";
 import { ConfigProvider, Effect, Layer, Redacted } from "effect";
 import { HttpServer } from "effect/http";
+// oxlint-disable-next-line effecttsgo/node-builtin-import -- NodeHttpServer.layer takes node:http's createServer.
 import { createServer } from "node:http";
 import { tracedRelayHttpApp } from "./relay-telemetry.ts";
 

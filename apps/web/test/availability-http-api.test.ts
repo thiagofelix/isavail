@@ -1,6 +1,7 @@
+import { BrowserCrypto } from "@effect/platform-browser";
 import { assert, describe, layer } from "@effect/vitest";
 import { RuntimeContext } from "alchemy";
-import { Effect, Layer } from "effect";
+import { Array, Effect, Layer } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { HttpApiTest } from "effect/http-api";
 import { availabilityCheckerTestLayer } from "../src/api/availability-checker.ts";
@@ -8,7 +9,7 @@ import { AvailabilityHttpApi } from "../src/api/availability-http-api.ts";
 import { availabilityHttpHandlersLayerWithoutDependencies } from "../src/api/availability-http-handlers.ts";
 
 const routesLayer = availabilityHttpHandlersLayerWithoutDependencies.pipe(
-  Layer.provide(availabilityCheckerTestLayer),
+  Layer.provide([availabilityCheckerTestLayer, BrowserCrypto.layer]),
   HttpRouter.provideRequest(RuntimeContext.phantom),
   Layer.merge(HttpServer.layerServices),
 );
@@ -27,7 +28,7 @@ layer(routesLayer)("Availability HTTP API", (it) => {
 
         assert.match(report.requestId, /^req_/);
         assert.deepStrictEqual(
-          report.checks.map((check) => check.domainName),
+          Array.map(report.checks, (check) => check.domainName),
           ["minhaempresa.com.br", "gov.com.br"],
         );
       }),
@@ -47,7 +48,7 @@ layer(routesLayer)("Availability HTTP API", (it) => {
 
         assert.strictEqual(error.retryable, false);
         assert.deepStrictEqual(
-          error.details.violations.map(({ input }) => input),
+          Array.map(error.details.violations, ({ input }) => input),
           ["minha_empresa", "exemplo.com"],
         );
       }),
@@ -64,7 +65,7 @@ layer(routesLayer)("Availability HTTP API", (it) => {
         });
 
         assert.deepStrictEqual(
-          report.checks.map((check) =>
+          Array.map(report.checks, (check) =>
             check._tag === "Checked" ? check.availability._tag : check._tag,
           ),
           ["Registered"],
