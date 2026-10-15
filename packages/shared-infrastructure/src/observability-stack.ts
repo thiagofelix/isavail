@@ -5,11 +5,11 @@ import type { Redacted } from "effect";
 export const OBSERVABILITY_STAGE = "production";
 
 /**
- * Where one environment's OpenTelemetry signals go: Axiom's OTLP/HTTP
- * endpoints and, per signal, the headers that authenticate the request and
- * select its dataset.
+ * Outputs the observability Stack publishes for the application Stacks: where
+ * every stage's OpenTelemetry signals go. Axiom's OTLP/HTTP endpoints and, per
+ * signal, the headers that authenticate the request and select its dataset.
  */
-export interface TelemetryDestination {
+export interface ObservabilityStackOutputs {
   /** OTLP/HTTP traces endpoint. */
   readonly tracesEndpoint: string;
   /**
@@ -23,18 +23,10 @@ export interface TelemetryDestination {
   readonly logsHeaders: Redacted.Redacted<string>;
 }
 
-/** Outputs the observability Stack publishes for the application Stacks. */
-export interface ObservabilityStackOutputs {
-  /** Destination of stage `production`. */
-  readonly production: TelemetryDestination;
-  /** Destination shared by every other stage, local development included. */
-  readonly preview: TelemetryDestination;
-}
-
 /**
  * Reference to the observability Stack.
  *
- * It owns the Axiom datasets and ingest tokens every stage exports to, exists
+ * It owns the Axiom datasets and ingest token every stage exports to, exists
  * only at {@link OBSERVABILITY_STAGE}, and is deployed before any application
  * stage reads it. Application Stacks never create Axiom resources, so their
  * deploys need no Axiom credentials. See `docs/observability.md`.

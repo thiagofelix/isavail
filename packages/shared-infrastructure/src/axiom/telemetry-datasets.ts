@@ -1,5 +1,5 @@
 /**
- * Axiom datasets and ingest tokens of the observability Stack.
+ * Axiom datasets and ingest token of the observability Stack.
  *
  * Only `alchemy.run.ts` imports this module, so Worker and relay bundles never
  * include the Axiom provider.
@@ -9,30 +9,8 @@ import * as Axiom from "alchemy/Axiom";
 import * as Output from "alchemy/Output";
 import { Effect, Redacted } from "effect";
 
-/** Settings that differ between the production and the preview destination. */
-interface TelemetryEnvironment {
-  /** Lowercase name used in the Axiom dataset and token names. */
-  readonly name: "production" | "preview";
-  /** Prefix of the logical resource IDs. */
-  readonly logicalIdPrefix: "Production" | "Preview";
-  /** Who exports into the destination, for the Axiom descriptions. */
-  readonly exporters: string;
-  readonly retentionDays: number;
-}
-
-const PRODUCTION: TelemetryEnvironment = {
-  name: "production",
-  logicalIdPrefix: "Production",
-  exporters: "stage production",
-  retentionDays: 30,
-};
-
-const PREVIEW: TelemetryEnvironment = {
-  name: "preview",
-  logicalIdPrefix: "Preview",
-  exporters: "every stage other than production, local development included",
-  retentionDays: 7,
-};
+/** Days Axiom keeps traces and logs; the most the Personal plan allows. */
+const RETENTION_DAYS = 30;
 
 /**
  * OTLP headers for one dataset, in the `OTEL_EXPORTER_OTLP_HEADERS` format:
@@ -52,53 +30,55 @@ const otlpHeaders = (
   );
 
 /**
- * Creates one environment's traces and logs datasets and an ingest token that
- * can write to those two datasets and nothing else.
- *
- * Datasets are retained when the Stack is destroyed, so their data survives;
- * tokens are deleted.
+ * Traces from every stage; the `alchemy.stage` resource attribute tells stages
+ * apart. Retained when the Stack is destroyed, so the data survives.
  */
-const provisionTelemetryDestination = (environment: TelemetryEnvironment) =>
-  Effect.gen(function* () {
-    const traces = yield* Axiom.Dataset(`${environment.logicalIdPrefix}Traces`, {
-      name: `isavail-${environment.name}-traces`,
-      kind: "otel:traces:v1",
-      description: `isavail OpenTelemetry traces from ${environment.exporters}.`,
-      retentionDays: environment.retentionDays,
-      useRetentionPeriod: true,
-    }).pipe(Alchemy.RemovalPolicy.retain());
+export const TracesDataset = Axiom.Dataset("Traces", {
+  name: "isavail-traces",
+  kind: "otel:traces:v1",
+  description: "isavail OpenTelemetry traces from every stage; filter on alchemy.stage.",
+  retentionDays: RETENTION_DAYS,
+  useRetentionPeriod: true,
+}).pipe(Alchemy.RemovalPolicy.retain());
 
-    const logs = yield* Axiom.Dataset(`${environment.logicalIdPrefix}Logs`, {
-      name: `isavail-${environment.name}-logs`,
-      kind: "otel:logs:v1",
-      description: `isavail OpenTelemetry logs from ${environment.exporters}.`,
-      retentionDays: environment.retentionDays,
-      useRetentionPeriod: true,
-    }).pipe(Alchemy.RemovalPolicy.retain());
+/** Logs from every stage, retained like {@link TracesDataset}. */
+export const LogsDataset = Axiom.Dataset("Logs", {
+  name: "isavail-logs",
+  kind: "otel:logs:v1",
+  description: "isavail OpenTelemetry logs from every stage; filter on alchemy.stage.",
+  retentionDays: RETENTION_DAYS,
+  useRetentionPeriod: true,
+}).pipe(Alchemy.RemovalPolicy.retain());
 
-    const ingestToken = yield* Axiom.ApiToken(`${environment.logicalIdPrefix}IngestToken`, {
-      name: `isavail-${environment.name}-telemetry-ingest`,
-      description: `Ingest-only token for the isavail ${environment.name} telemetry datasets.`,
-      // Keyed by the dataset Outputs rather than literal names so Alchemy
-      // creates the token after the datasets exist.
-      datasetCapabilities: Output.all(traces.name, logs.name).pipe(
-        Output.map(([tracesName, logsName]) => ({
-          [tracesName]: { ingest: ["create"] },
-          [logsName]: { ingest: ["create"] },
-        })),
-      ),
-    });
+/**
+ * Where every stage exports: both datasets and an ingest token that can write
+ * to those two datasets and nothing else. The token is deleted when the Stack
+ * is destroyed.
+ *
+ * Traces and logs need separate datasets because a dataset's kind fixes the
+ * one OpenTelemetry signal it accepts.
+ */
+export const TelemetryDestination = Effect.gen(function* () {
+  const traces = yield* TracesDataset;
+  const logs = yield* LogsDataset;
 
-    return {
-      tracesEndpoint: traces.otelTracesEndpoint,
-      tracesHeaders: otlpHeaders(ingestToken.token, traces.name),
-      logsEndpoint: logs.otelLogsEndpoint,
-      logsHeaders: otlpHeaders(ingestToken.token, logs.name),
-    };
+  const ingestToken = yield* Axiom.ApiToken("IngestToken", {
+    name: "isavail-telemetry-ingest",
+    description: "Ingest-only token for the isavail traces and logs datasets.",
+    // Keyed by the dataset Outputs rather than literal names so Alchemy
+    // creates the token after the datasets exist.
+    datasetCapabilities: Output.all(traces.name, logs.name).pipe(
+      Output.map(([tracesName, logsName]) => ({
+        [tracesName]: { ingest: ["create"] },
+        [logsName]: { ingest: ["create"] },
+      })),
+    ),
   });
 
-/** Destination of stage `production`. */
-export const ProductionTelemetryDestination = provisionTelemetryDestination(PRODUCTION);
-
-/** Destination shared by every other stage, local development included. */
-export const PreviewTelemetryDestination = provisionTelemetryDestination(PREVIEW);
+  return {
+    tracesEndpoint: traces.otelTracesEndpoint,
+    tracesHeaders: otlpHeaders(ingestToken.token, traces.name),
+    logsEndpoint: logs.otelLogsEndpoint,
+    logsHeaders: otlpHeaders(ingestToken.token, logs.name),
+  };
+});

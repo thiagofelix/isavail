@@ -15,12 +15,12 @@ const observabilityStackReference = Effect.suspend(
 
 /**
  * Standard OpenTelemetry environment variables that export a program's traces
- * and logs to the Axiom destination of the current stage.
+ * and logs to the Axiom datasets of the observability Stack.
  *
- * Stage {@link OBSERVABILITY_STAGE} exports to the production datasets; every
- * other stage, `alchemy dev` included, exports to the preview datasets. The
+ * Every stage, `alchemy dev` included, exports to the same datasets. The
  * resource attributes `alchemy.stack` and `alchemy.stage` identify the
- * exporting Stack and stage, the same names Alchemy's Worker exporter uses.
+ * exporting Stack and stage (the same names Alchemy's Worker exporter uses),
+ * so queries select a stage by filtering on `alchemy.stage`.
  *
  * `variables` hold no credentials. `secrets` carry the ingest token and must
  * be bound as secrets: `Redacted` Worker env values or Fly secrets.
@@ -33,9 +33,7 @@ const observabilityStackReference = Effect.suspend(
 export const telemetryExportVariables = (serviceName: string) =>
   Effect.gen(function* () {
     const stack = yield* Alchemy.Stack;
-    const observability = yield* observabilityStackReference;
-    const destination =
-      stack.stage === OBSERVABILITY_STAGE ? observability.production : observability.preview;
+    const destination = yield* observabilityStackReference;
 
     return {
       variables: {

@@ -1,12 +1,9 @@
-import { telemetryExportVariables } from "@isavail/shared-infrastructure";
+import { TELEMETRY_SERVICE_NAMES, telemetryExportVariables } from "@isavail/shared-infrastructure";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Effect } from "effect";
 import { HttpRouter } from "effect/http";
 import { availabilityHttpApiLayer } from "./availability-http-handlers.ts";
 import { registryRelayWorkerEnv } from "./registry-relay-connection.ts";
-
-/** `service.name` of the API Worker's traces and logs. */
-const AVAILABILITY_API_TELEMETRY_SERVICE_NAME = "isavail-availability-api";
 
 /**
  * The public availability API. The website forwards `/v1/*` to it through a
@@ -21,7 +18,7 @@ export default class AvailabilityApiWorker extends Cloudflare.Worker<Availabilit
   "AvailabilityApi",
   Effect.gen(function* () {
     const relayEnv = yield* registryRelayWorkerEnv;
-    const telemetry = yield* telemetryExportVariables(AVAILABILITY_API_TELEMETRY_SERVICE_NAME);
+    const telemetry = yield* telemetryExportVariables(TELEMETRY_SERVICE_NAMES.availabilityApi);
 
     return {
       main: import.meta.url,

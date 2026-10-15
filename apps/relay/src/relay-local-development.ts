@@ -5,7 +5,7 @@ import { RELAY_TELEMETRY_SERVICE_NAME } from "./relay-telemetry.ts";
 
 /**
  * The relay under `alchemy dev`: `src/relay-local-server.ts` on the loopback
- * interface, exporting to the preview telemetry destination. Alchemy has no
+ * interface, exporting to the shared telemetry datasets. Alchemy has no
  * local provider for Fly.io, so this replaces the App, Machine, and secrets.
  *
  * Kept out of `relay-service.ts`, the Machine's bundle entry, so the deployed

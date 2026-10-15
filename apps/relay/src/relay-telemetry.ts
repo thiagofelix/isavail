@@ -1,10 +1,11 @@
+import { TELEMETRY_SERVICE_NAMES } from "@isavail/shared-infrastructure";
 import { Effect, Layer } from "effect";
-import { FetchHttpClient, HttpRouter } from "effect/http";
+import { FetchHttpClient, HttpMiddleware, HttpRouter } from "effect/http";
 import { OtlpLogger, OtlpSerialization, OtlpTracer } from "effect/observability";
 import { relayHttpApiLayer } from "./relay-http-server.ts";
 
 /** `service.name` of the relay's traces and logs. */
-export const RELAY_TELEMETRY_SERVICE_NAME = "isavail-registry-relay";
+export const RELAY_TELEMETRY_SERVICE_NAME = TELEMETRY_SERVICE_NAMES.registryRelay;
 
 /**
  * OpenTelemetry trace and log exporters for the relay process, configured by
@@ -27,10 +28,15 @@ const relayTelemetryLayer = Layer.mergeAll(
  *
  * The exporters are provided twice on purpose. Effect's HTTP API handlers run
  * with the context their routes were built in, so the routes are built under
- * the exporters; the router's `http.server` span reads the tracer of the
- * request fiber, so every request runs under them too. That span continues
- * the caller's `traceparent`, which joins the relay's spans to the API
- * Worker's trace.
+ * the exporters. Every request then runs under them too, which the server span
+ * needs.
+ *
+ * The server span comes from `HttpMiddleware.tracer`, applied here rather than
+ * by the HTTP server. Effect's server traces a request only when the server's
+ * own fiber has a tracer, and the server fiber belongs to Alchemy's Fly
+ * runtime (or to `relay-local-server.ts`), where no exporter is installed. The
+ * middleware continues the caller's `traceparent`, which joins the relay's
+ * spans to the API Worker's trace.
  */
 export const tracedRelayHttpApp = Effect.gen(function* () {
   const telemetry = yield* Layer.build(relayTelemetryLayer);
@@ -38,5 +44,5 @@ export const tracedRelayHttpApp = Effect.gen(function* () {
     Effect.provideContext(telemetry),
   );
 
-  return httpApp.pipe(Effect.provideContext(telemetry));
+  return HttpMiddleware.tracer(httpApp).pipe(Effect.provideContext(telemetry));
 });

@@ -1,24 +1,22 @@
 # Observability: Axiom traces and logs per Alchemy stage
 
 Every stage of the API Worker and the Registro.br relay sends OpenTelemetry traces and logs to Axiom.
-Stage `production` writes to its own datasets. Every other stage (previews, branch or agent deploys,
-and local development under `vp run dev`) writes to one shared pair of preview datasets.
+All stages (production, previews, branch or agent deploys, and local development under `vp run dev`)
+share one traces dataset and one logs dataset. The `alchemy.stage` resource attribute on every span
+and log record tells stages apart.
 
 ## Resources
 
-| Resource                | Axiom name                            | Retention | Lifecycle                                        |
-| ----------------------- | ------------------------------------- | --------- | ------------------------------------------------ |
-| Production traces       | `isavail-production-traces`           | 30 days   | Permanent; retained on destroy                   |
-| Production logs         | `isavail-production-logs`             | 30 days   | Permanent; retained on destroy                   |
-| Preview traces          | `isavail-preview-traces`              | 7 days    | Permanent; retained on destroy                   |
-| Preview logs            | `isavail-preview-logs`                | 7 days    | Permanent; retained on destroy                   |
-| Production ingest token | `isavail-production-telemetry-ingest` | —         | Can only ingest into the two production datasets |
-| Preview ingest token    | `isavail-preview-telemetry-ingest`    | —         | Can only ingest into the two preview datasets    |
+| Resource     | Axiom name                 | Retention | Lifecycle                             |
+| ------------ | -------------------------- | --------- | ------------------------------------- |
+| Traces       | `isavail-traces`           | 30 days   | Permanent; retained on destroy        |
+| Logs         | `isavail-logs`             | 30 days   | Permanent; retained on destroy        |
+| Ingest token | `isavail-telemetry-ingest` | —         | Can only ingest into the two datasets |
+| Dashboard    | `isavail traces`           | —         | Deleted on destroy                    |
 
-Definitions live in `packages/shared-infrastructure/src/axiom/telemetry-datasets.ts`.
-
-Axiom's free Personal plan allows 3 datasets, and this needs 4. If Axiom refuses to create the
-fourth one, either upgrade the plan or drop the preview logs dataset.
+Definitions live in `packages/shared-infrastructure/src/axiom/telemetry-datasets.ts`. Traces and
+logs can't share a dataset, because a dataset's kind (`otel:traces:v1`, `otel:logs:v1`) fixes the one
+signal it accepts. 30 days is the most retention Axiom's free Personal plan allows.
 
 ## Ownership and stage isolation
 
@@ -28,20 +26,19 @@ observability datasets.
 - **Owner:** the `IsavailObservability` Stack (`packages/shared-infrastructure/alchemy.run.ts`). It
   exists only at stage `production` and refuses to run at any other stage. Its state lives in the
   same Cloudflare state store as the application Stacks.
-- **Outputs:** one destination per environment (`production`, `preview`). Each output holds the OTLP
-  traces and logs endpoints, plus the headers for each signal: the bearer ingest token and
-  `X-Axiom-Dataset`. The headers are `Redacted` and use the `OTEL_EXPORTER_OTLP_HEADERS` format.
+- **Outputs:** the OTLP traces and logs endpoints, plus the headers for each signal: the bearer
+  ingest token and `X-Axiom-Dataset`. The headers are `Redacted` and use the `OTEL_EXPORTER_OTLP_HEADERS` format.
 - **Consumers:** application Stacks read `ObservabilityStack.stage.production` through
-  `telemetryExportVariables` (`@isavail/shared-infrastructure`). Stage `production` picks the
-  production destination and every other stage picks the preview one. No application Stack creates
+  `telemetryExportVariables` (`@isavail/shared-infrastructure`), which also sets the
+  `alchemy.stack` and `alchemy.stage` resource attributes. No application Stack creates
   Axiom resources, so deploying an application stage needs Cloudflare and Fly credentials only, never
   Axiom credentials.
 - **Provider selection:** the Axiom resources have no local provider and are always live. Under
-  `alchemy dev` both apps export to the preview datasets.
+  `alchemy dev` both apps export to the same datasets, under their `dev_<user>` stage.
 
 ## Ordering
 
-1. `vp run deploy:observability` creates or updates the datasets and tokens. This step needs Axiom
+1. `vp run deploy:observability` creates or updates the datasets and the token. This step needs Axiom
    credentials (`alchemy profile`), and it has to run once before any application stage is deployed
    or run with `vp run dev`. Until then, application Stacks fail with
    `Reference to stack 'IsavailObservability' at stage 'production' not found`.
@@ -49,10 +46,10 @@ observability datasets.
    `@isavail/shared-infrastructure#deploy`, so `vp run deploy:production` deploys observability
    first. Preview deploys don't redeploy it.
 3. Destroying an application stage never touches the observability Stack. Destroying the
-   observability Stack (`vp run @isavail/shared-infrastructure#destroy`) deletes both tokens, which
-   stops every stage from exporting, but keeps all four datasets.
+   observability Stack (`vp run @isavail/shared-infrastructure#destroy`) deletes the token, which
+   stops every stage from exporting, but keeps both datasets.
 
-Rotating a token means replacing it in the observability Stack. Application stages pick up the new
+Rotating the token means replacing it in the observability Stack. Application stages pick up the new
 headers on their next deploy (Workers: secret bindings; relay: Fly secrets, whose digests are in the
 Machine config so the Machine restarts with them).
 
@@ -86,38 +83,65 @@ returns:
 
 ### Connected traces
 
-The API Worker's `http.server` span covers each `/v1` request. Its `RegistryRelayClient` uses
-Effect's `HttpClient`, which sends a W3C `traceparent` header. The relay's router continues that
-context in its own `http.server` span. The relay's lookup spans (`RelayAuthorization.bearer` and the
-ISAVAIL client) therefore appear in the same trace as the Worker request that caused them.
+Each `/v1` request gets an `http.server` span in the API Worker (span name: the HTTP method, with
+`http.route` as an attribute). The Worker's `RegistryRelayClient` uses Effect's `HttpClient`, which
+sends a W3C `traceparent` header. The relay continues that context in its own `http.server` span, so
+the relay's lookup spans (`RelayAuthorization.bearer` and `IsavailClient.lookUpDomains`) appear in the
+same trace as the Worker request that caused them.
+
+The relay applies `HttpMiddleware.tracer` itself (`apps/relay/src/relay-telemetry.ts`). Effect's
+HTTP server traces a request only when the server's own fiber has a tracer. The server fiber belongs
+to Alchemy's Fly runtime or to `relay-local-server.ts`, and neither installs an exporter. Without the
+middleware, the relay sent no server span and each lookup started a trace of its own.
+
+## Dashboard
+
+The `isavail traces` dashboard (`packages/shared-infrastructure/src/axiom/traces-dashboard.ts`) is
+created by the observability Stack. Its filter bar selects a stage (the options come from the stages
+seen in the dataset) and a service. Every chart applies both filters.
+
+| Row | Charts                                                                                    |
+| --- | ----------------------------------------------------------------------------------------- |
+| 1   | Requests, failed requests (%), request p95 (ms), answers served from cache (%)            |
+| 2   | Requests by service; request latency p50/p95/p99                                          |
+| 3   | Responses by status class; Registro.br lookup p95 (Worker → relay vs relay → Registro.br) |
+| 4   | Domains checked, fresh vs cached; slowest operations                                      |
+| 5   | Routes: requests, failures, and latency per service, method, and route                    |
+| 6   | Recent errors with stage, span, status message, and example trace IDs                     |
+
+Request charts leave out `/v1/health`, and the Routes table still lists it. The domain charts read
+span names and attributes set in the apps, as the module's comment lists. Renaming one of them
+empties its chart, so update the dashboard in the same change.
+
+The queries use Axiom's OpenTelemetry fields (`kind`, `duration`, `status.code`, `service.name`,
+`attributes.http.route`, `attributes.http.response.status_code`, `['resource.custom'][…]`,
+`['attributes.custom'][…]`). They were checked against ingested isavail spans and Axiom's
+`otel-demo-traces`. Axiom adds a column only once a span carries it, so the queries read the status
+columns through `column_ifexists`.
 
 ## Querying
 
-Select one stage of the shared preview dataset by its resource attribute:
+Select one stage by its resource attribute:
 
 ```apl
-['isavail-preview-traces']
+['isavail-traces']
 | where ['resource.custom']['alchemy.stage'] == "pr-42"
 | summarize count() by ['service.name'], name
 ```
 
-A failing request is traced end to end by its trace ID:
+Follow one request end to end by its trace ID:
 
 ```apl
-['isavail-production-traces']
+['isavail-traces']
 | where trace_id == "<trace-id>"
 | sort by _time asc
-| project _time, ['service.name'], name, duration, status.code
+| project _time, ['service.name'], name, duration, ['status.code']
 ```
-
-The field path for custom resource attributes (`['resource.custom'][…]`) follows Axiom's documented
-OpenTelemetry mapping. It hasn't been checked against ingested spans yet.
 
 ## Still unverified (needs a deployed stage)
 
-- That Axiom accepts the fourth dataset on the current plan.
-- That the relay's `http.server` span is parented to the Worker's client span in Axiom, i.e. that
-  `traceparent` survives the Fly proxy.
+- That `traceparent` survives the Fly proxy, so the deployed relay's spans join the Worker's trace.
+  Locally, the relay's `http.server` span continues the caller's trace (checked against a local OTLP
+  collector).
 - That two `alchemy dev` processes (relay and web) run side by side under `vp run dev` without
   contending for the dev sidecar.
-- The field paths for resource and span attributes in Axiom.

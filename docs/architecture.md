@@ -56,7 +56,7 @@ examples and the official Python client.
 | `packages/availability-contract` | Domain vocabulary (`DomainName`, `DomainAvailability`), the relay HTTP contract, local development constants, and the `RegistryRelayStack` reference. Both apps depend on it; neither imports the other. |
 | `apps/relay`                     | ISAVAIL protocol, UDP client, relay HTTP server, Fly.io Service, and the relay Stack.                                                                                                                    |
 | `apps/web`                       | Public HTTP API (`/v1`), availability checker and KV cache, Foldkit website, and the web Stack.                                                                                                          |
-| `packages/shared-infrastructure` | The observability Stack (Axiom datasets and ingest tokens), its `ObservabilityStack` reference, `telemetryExportVariables`, and `isAlchemyDev`. Both apps depend on it.                                  |
+| `packages/shared-infrastructure` | The observability Stack (Axiom datasets and ingest token), its `ObservabilityStack` reference, `telemetryExportVariables`, and `isAlchemyDev`. Both apps depend on it.                                   |
 | `tools/oxlint-plugin-isavail`    | Lint rule that keeps service constructors out of runtime imports.                                                                                                                                        |
 
 ## Stacks and lifecycle
@@ -72,11 +72,11 @@ relay Stack's outputs and both app Stacks read the observability Stack's outputs
 | `Website` Worker and assets                              | `IsavailWeb`           | Stage-isolated                                | Vite dev server and workerd under `alchemy dev`     |
 | `AvailabilityCache` KV namespace                         | `IsavailWeb`           | Stage-isolated                                | Local KV under `alchemy dev`                        |
 | Relay telemetry header Fly secrets                       | `IsavailRegistryRelay` | Stage-isolated                                | None; `Command.Dev` env under `alchemy dev`         |
-| Axiom trace and log datasets, ingest tokens              | `IsavailObservability` | Permanent, stage `production` only; shared    | None; always live                                   |
+| Axiom traces and logs datasets, ingest token             | `IsavailObservability` | Permanent, stage `production` only; shared    | None; always live                                   |
 
-The observability Stack is the documented exception to stage isolation. Stage `production` exports
-to the production datasets, and every other stage, local development included, exports to the
-shared preview datasets. See [`docs/observability.md`](observability.md).
+The observability Stack is the documented exception to stage isolation. Every stage, local
+development included, exports to the same traces and logs datasets, and the `alchemy.stage` resource
+attribute tells stages apart. See [`docs/observability.md`](observability.md).
 
 Deploy `IsavailObservability` once (`vp run deploy:observability`) before any application stage.
 Production deploys redeploy it first through `dependsOn`. Application Stacks never destroy it.
@@ -98,7 +98,7 @@ Alchemy has no local provider for Fly.io. Under `alchemy dev` the web Stack ther
 API Worker to `LOCAL_REGISTRY_RELAY_URL` (`http://127.0.0.1:4310`) and a fixed token. The relay
 Stack (`vp run @isavail/relay#dev`, which runs `alchemy dev`) declares no Fly resources. Instead it
 runs the same relay program under Node on the loopback interface through `Command.Dev`, with the
-preview telemetry variables. This
+shared telemetry variables. This
 follows the standards' rule that a missing local provider must not route local traffic through
 production. The local relay holds no data and serves only the developer's machine. Like every
 stage, it talks to the real Registro.br, which nothing can emulate, and spends the developer's own

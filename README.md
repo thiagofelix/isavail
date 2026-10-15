@@ -17,7 +17,7 @@ vp run dev        # relay on 127.0.0.1:4310 and the website on http://localhost:
 `vp run dev` starts the relay Stack and the web Stack with `alchemy dev`. The relay runs under
 Node, and the Workers and KV run locally. Lookups still reach the real Registro.br, which answers
 a burst of about 30 queries and then about one per second. Local traces and logs go to the shared
-preview datasets in Axiom, so the observability Stack must have been deployed once
+Axiom datasets under your `dev_<user>` stage, so the observability Stack must have been deployed once
 (`vp run deploy:observability`).
 
 ## Check
@@ -35,7 +35,7 @@ token. The observability Stack needs Axiom credentials and is deployed once, bef
 See [`docs/observability.md`](docs/observability.md).
 
 ```sh
-vp run deploy:observability             # Axiom datasets and ingest tokens (stage production)
+vp run deploy:observability             # Axiom datasets and ingest token (stage production)
 ALCHEMY_STAGE=preview vp run deploy     # relay Stack, then web Stack, for one stage
 vp run deploy:production                # observability, relay, then web
 ALCHEMY_STAGE=preview vp run destroy    # web Stack, then relay Stack
