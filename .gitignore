@@ -4,8 +4,14 @@ dist-ssr
 *.local
 *.log
 
-.alchemy
-.wrangler
+# Nix build outputs
+result
+result-*
+
+# SQLite cache created by `vp run dev` and `vp run start`
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 .env
 .env.*

@@ -1,0 +1,27 @@
+{
+  "name": "@isavail/isavail",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Checks whether .br domains can be registered: a website and a public HTTP API backed by Registro.br's ISAVAIL service, run as one self-hosted Node process.",
+  "type": "module",
+  "scripts": {
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:",
+    "@foldkit/ui": "catalog:",
+    "effect": "catalog:",
+    "foldkit": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@foldkit/vite-plugin": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}

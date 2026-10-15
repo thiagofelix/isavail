@@ -1,0 +1,65 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "barrelImportPackages": ["effect"],
+        "allowedUnstableApis": [
+          "@effect/platform-node/NodeCrypto",
+          "@effect/platform-node/NodeHttpServer",
+          "@effect/platform-node/NodeRuntime",
+          "@effect/sql-sqlite-node/SqliteClient",
+          "@effect/sql-sqlite-node/SqliteMigrator",
+          "@effect/vitest",
+          "effect/Crypto",
+          "effect/FileSystem",
+          "effect/Path",
+          "effect/http-api/HttpApi",
+          "effect/http-api/HttpApiBuilder",
+          "effect/http-api/HttpApiClient",
+          "effect/http-api/HttpApiEndpoint",
+          "effect/http-api/HttpApiGroup",
+          "effect/http-api/HttpApiSchema",
+          "effect/http-api/HttpApiTest",
+          "effect/http-api/OpenApi",
+          "effect/http/FetchHttpClient",
+          "effect/http/HttpClient",
+          "effect/http/HttpRouter",
+          "effect/http/HttpServer",
+          "effect/http/HttpServerResponse",
+          "effect/http/HttpStaticServer",
+          "effect/observability/Otlp",
+          "effect/observability/OtlpSerialization",
+          "effect/persistence/RateLimiter",
+          "effect/sql/Migrator",
+          "effect/sql/SqlClient",
+          "effect/sql/SqlError"
+        ],
+        "allowedExperimentalApis": [
+          "@effect/platform-node-shared/NodeDatagramSocket",
+          "effect/socket/DatagramSocket"
+        ],
+        "overrides": [
+          {
+            "include": ["scripts/**/*.ts"],
+            "options": {
+              "allowedUnstableApis": [
+                "@effect/platform-node/NodeRuntime",
+                "@effect/platform-node/NodeServices",
+                "effect/FileSystem",
+                "effect/Path",
+                "effect/http-api/OpenApi",
+                "effect/process/ChildProcess",
+                "effect/process/ChildProcessSpawner"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "include": ["src", "test", "scripts", "vite.config.ts", "vite.server.config.ts"]
+}

@@ -98,7 +98,7 @@ Choose status from the caller-visible meaning, not the implementation that faile
 - `500` — cf-workflow-pool cannot complete the operation because of an internal invariant or non-transient internal failure; and
 - `503` — a required capability is temporarily unavailable.
 
-The concrete public `HttpApi` owns each endpoint's exact status and error schemas. Infrastructure such as Cloudflare Access may reject a request before it reaches that application contract.
+The concrete public `HttpApi` owns each endpoint's exact status and error schemas. Infrastructure such as a reverse proxy in front of the service may reject a request before it reaches that application contract.
 
 ## Review Checklist
 

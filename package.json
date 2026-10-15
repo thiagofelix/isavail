@@ -6,13 +6,10 @@
   "scripts": {
     "prepare": "effect-tsgo patch --no-typescript --oxlint",
     "ready": "vp check && vp run -r test",
-    "dev": "vp run --parallel --filter @isavail/relay --filter @isavail/web dev",
-    "generate:openapi": "vp run @isavail/web#generate:openapi",
-    "deploy": "vp run @isavail/web#deploy",
-    "deploy:production": "vp run @isavail/web#deploy:production",
-    "plan:observability": "vp run @isavail/shared-infrastructure#plan",
-    "deploy:observability": "vp run @isavail/shared-infrastructure#deploy",
-    "destroy": "vp run @isavail/relay#destroy"
+    "dev": "vp run @isavail/isavail#dev",
+    "build": "vp run @isavail/isavail#build",
+    "start": "vp run @isavail/isavail#start",
+    "generate:openapi": "vp run @isavail/isavail#generate:openapi"
   },
   "devDependencies": {
     "@effect/tsgo": "catalog:",

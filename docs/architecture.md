@@ -4,35 +4,37 @@ isavail checks whether `.br` domains can be registered, for people choosing a co
 for AI agents generating them. Every answer comes from Registro.br's official ISAVAIL
 availability service.
 
+It is one self-hosted Node process:
+
 ```text
 browser / Agent
-   │  HTTPS, same origin
+   │  HTTP
    ▼
-Website Worker (Cloudflare) ── /v1/* ──▶ AvailabilityApi Worker (Cloudflare) ──▶ Workers KV cache
-   │  Foldkit SPA assets                       │  HTTPS + bearer token
-   ▼                                           ▼
-                                     Registro.br relay (Fly.io, gru)
-                                               │  UDP 43, ISAVAIL protocol
-                                               ▼
-                                     avail.registro.br
+isavail (Node 24, one process)
+   ├── /            Foldkit website (static files from dist/client, SPA fallback)
+   ├── /v1/*        public HTTP API ──▶ AvailabilityChecker
+   │                                      ├── AvailabilityCache ──▶ SQLite file (node:sqlite)
+   │                                      └── IsavailClient ──UDP 43, ISAVAIL──▶ avail.registro.br
+   └── OTLP/HTTP ──▶ OpenTelemetry collector (optional)
 ```
 
-## Why a relay outside Cloudflare
+ISAVAIL is UDP only: `avail.registro.br` refuses TCP on port 43. A plain Node process can open
+UDP sockets, so the HTTP API asks Registro.br directly. No relay or second service sits in between.
 
-ISAVAIL is UDP only: `avail.registro.br` refuses TCP on port 43. Cloudflare Workers can open TCP
-sockets but not UDP ones, so the Workers cannot speak to Registro.br themselves. The relay is a
-small Effect program on one Fly.io Machine in São Paulo (`gru`) that turns HTTP lookups into
-ISAVAIL datagrams.
+## One process, one source address
 
-One Machine is deliberate. Registro.br issues its cookie and its query budget per source address,
-and the relay paces itself with a process-local rate limiter. More Machines would need a shared
-store such as `RateLimiter.layerStoreRedis`, and a fixed egress address would be needed before
-Registro.br could register the relay as a proxy (the protocol's `[ip]` field).
+Registro.br issues its cookie and its query budget per source address, and `IsavailClient` paces
+itself with a process-local rate limiter (`RateLimiter.layerStoreMemory`). Run one process per
+public address. A second process behind the same address would spend the same budget without
+knowing it, and would then need a shared store such as `RateLimiter.layerStoreRedis`.
 
-## Registro.br behavior the relay depends on
+Registro.br can register a fixed address as a proxy (the protocol's `[ip]` field) or raise its
+limit. Ask `isavail@registro.br` for either.
+
+## Registro.br behavior the client depends on
 
 Measured against the live service on 2026-10-15. The published specification in
-`Protocolo-ISAVAIL.txt` differs from the live service in several places; the relay follows the
+`Protocolo-ISAVAIL.txt` differs from the live service in several places; the client follows the
 live service.
 
 | Behavior                                                                                                                                                             | Consequence in code                                                                                                                                                                                                                                       |
@@ -40,7 +42,7 @@ live service.
 | Each source address gets a token bucket of 30 queries that refills at one query per second. An empty bucket turns every query into `ST 8 Query rate limit exceeded`. | `IsavailClientSettings`: burst 25, refill one per 1.2 s, an adaptive cooldown after a refusal, and a 5 s pacing budget per request. Domains beyond the budget are `RegistryRateLimited` with `retryAfterSeconds`; the website retries them automatically. |
 | Concurrent queries from one source are mixed up: answers carry another query's identifier or domain, repeat, or go missing.                                          | One query in flight per process (`maxQueriesInFlight: 1`), and every answer's echoed domain must match its query.                                                                                                                                         |
 | A query with an outdated cookie is answered with `CK <cookie> <qid>`.                                                                                                | The cookie lives for the process; a renewal resends the query once.                                                                                                                                                                                       |
-| Internationalized names arrive as `unicode                                                                                                                           | ace`, not `ace                                                                                                                                                                                                                                            | unicode`. | The Unicode form is the domain name. |
+| Internationalized names arrive as `unicode\|ace`, not `ace\|unicode`.                                                                                                | The Unicode form is the domain name.                                                                                                                                                                                                                      |
 | Payment-exempt registrations say `Exempt from payment`, not `0`.                                                                                                     | Both map to `ExemptFromPayment`.                                                                                                                                                                                                                          |
 | Status 3 also covers malformed names (`Invalid domain`) and unknown categories (`Invalid TLD`).                                                                      | `UnavailableReason` classifies the English message.                                                                                                                                                                                                       |
 | Release timestamps have no zone.                                                                                                                                     | They are read as Brasília time (UTC−03:00, without daylight saving time since 2019).                                                                                                                                                                      |
@@ -49,82 +51,74 @@ live service.
 Statuses 1, 5, 6, 7, and 9 could not be observed live; their parsing follows the specification's
 examples and the official Python client.
 
-## Workspaces
+## Source layout
 
-| Workspace                        | Role                                                                                                                                                                                                     |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/availability-contract` | Domain vocabulary (`DomainName`, `DomainAvailability`), the relay HTTP contract, local development constants, and the `RegistryRelayStack` reference. Both apps depend on it; neither imports the other. |
-| `apps/relay`                     | ISAVAIL protocol, UDP client, relay HTTP server, Fly.io Service, and the relay Stack.                                                                                                                    |
-| `apps/web`                       | Public HTTP API (`/v1`), availability checker and KV cache, Foldkit website, and the web Stack.                                                                                                          |
-| `packages/shared-infrastructure` | The observability Stack (Axiom datasets and ingest token), its `ObservabilityStack` reference, `telemetryExportVariables`, and `isAlchemyDev`. Both apps depend on it.                                   |
-| `tools/oxlint-plugin-isavail`    | Lint rule that keeps service constructors out of runtime imports.                                                                                                                                        |
+Everything lives in one app, `apps/isavail`. `tools/oxlint-plugin-isavail` holds the lint rule
+that keeps service constructors out of runtime imports.
 
-## Stacks and lifecycle
+| Directory          | Role                                                                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/domain`       | Domain vocabulary shared by the server and the website: `DomainName`, `DomainAvailability`.                                                           |
+| `src/registry`     | ISAVAIL protocol codec, the UDP `IsavailClient`, and the `RegistryLookup` outcome type.                                                               |
+| `src/api`          | Public HTTP contract (`AvailabilityHttpApi`), its handlers, `AvailabilityChecker`, and the SQLite `AvailabilityCache`.                                |
+| `src/server`       | Composition root (`main.ts`): HTTP server, static website, configuration, and OpenTelemetry (`telemetry.ts`).                                         |
+| `src/client`       | Foldkit website. It imports `src/domain`, `src/registry/registry-lookup.ts`, and `src/api/availability-http-api.ts` only, so no Node code reaches it. |
+| `scripts`          | `dev.ts` (development supervisor) and `generate-openapi.ts`.                                                                                          |
+| `nix`, `flake.nix` | Nix package and NixOS module.                                                                                                                         |
 
-All three Stacks keep state in the same Cloudflare state store. That lets the web Stack read the
-relay Stack's outputs and both app Stacks read the observability Stack's outputs.
+## Build
 
-| Resource                                                 | Owning Stack           | Isolation                                     | Local provider                                      |
-| -------------------------------------------------------- | ---------------------- | --------------------------------------------- | --------------------------------------------------- |
-| Relay Fly App, Machine, shared IPv4                      | `IsavailRegistryRelay` | Stage-isolated; names are generated per stage | None; see below                                     |
-| Relay access token (`Alchemy.Random`) and its Fly secret | `IsavailRegistryRelay` | Stage-isolated                                | None; local development uses a fixed loopback token |
-| `AvailabilityApi` Worker                                 | `IsavailWeb`           | Stage-isolated                                | workerd under `alchemy dev`                         |
-| `Website` Worker and assets                              | `IsavailWeb`           | Stage-isolated                                | Vite dev server and workerd under `alchemy dev`     |
-| `AvailabilityCache` KV namespace                         | `IsavailWeb`           | Stage-isolated                                | Local KV under `alchemy dev`                        |
-| Relay telemetry header Fly secrets                       | `IsavailRegistryRelay` | Stage-isolated                                | None; `Command.Dev` env under `alchemy dev`         |
-| Axiom traces and logs datasets, ingest token             | `IsavailObservability` | Permanent, stage `production` only; shared    | None; always live                                   |
+`vp run build` produces two outputs under `apps/isavail/dist`:
 
-The observability Stack is the documented exception to stage isolation. Every stage, local
-development included, exports to the same traces and logs datasets, and the `alchemy.stage` resource
-attribute tells stages apart. See [`docs/observability.md`](observability.md).
+- `client/`: the website, from `vite.config.ts`. Files under `assets/` are fingerprinted and
+  served with `Cache-Control: immutable`; `index.html` is served with `no-cache`.
+- `server/main.js`: the server and every JavaScript dependency bundled into one ES module, from
+  `vite.server.config.ts`. Node built-ins such as `node:sqlite` and `node:dgram` stay external, so
+  running it needs Node 24 and nothing else. No `node_modules` ship.
 
-Deploy `IsavailObservability` once (`vp run deploy:observability`) before any application stage.
-Production deploys redeploy it first through `dependsOn`. Application Stacks never destroy it.
+`node dist/server/main.js` serves `dist/client` by default. The Nix package installs both under
+`lib/isavail` and wraps Node as `bin/isavail`.
 
-Ordering of the application Stacks:
+## Configuration
 
-1. Deploy `IsavailRegistryRelay` for a stage, then `IsavailWeb` for the same stage. The web Stack
-   binds the relay `url` and `accessToken` outputs of its own stage. `vp run @isavail/web#deploy`
-   runs the relay deployment first through `dependsOn`.
-2. Destroy `IsavailWeb` first, then `IsavailRegistryRelay`. `vp run @isavail/relay#destroy` runs
-   the web destruction first.
-3. Both Stacks read the stage from `--stage`, `ALCHEMY_STAGE`, or the default `live_${USER}`. Set
-   `ALCHEMY_STAGE` once so both Stacks resolve the same stage; the production tasks pass
-   `--stage production` to both.
+All configuration is environment variables.
 
-### Local development exception
-
-Alchemy has no local provider for Fly.io. Under `alchemy dev` the web Stack therefore binds the
-API Worker to `LOCAL_REGISTRY_RELAY_URL` (`http://127.0.0.1:4310`) and a fixed token. The relay
-Stack (`vp run @isavail/relay#dev`, which runs `alchemy dev`) declares no Fly resources. Instead it
-runs the same relay program under Node on the loopback interface through `Command.Dev`, with the
-shared telemetry variables. This
-follows the standards' rule that a missing local provider must not route local traffic through
-production. The local relay holds no data and serves only the developer's machine. Like every
-stage, it talks to the real Registro.br, which nothing can emulate, and spends the developer's own
-query budget.
+| Variable              | Default                       | Meaning                                                               |
+| --------------------- | ----------------------------- | --------------------------------------------------------------------- |
+| `ISAVAIL_HOST`        | `127.0.0.1`                   | Address to listen on.                                                 |
+| `ISAVAIL_PORT`        | `4310`                        | Port for the website and `/v1`.                                       |
+| `ISAVAIL_DATABASE`    | `isavail.sqlite` (in the cwd) | SQLite cache file. Created with its table on first start.             |
+| `ISAVAIL_WEBSITE_DIR` | `../client` beside `main.js`  | Built website. Without an `index.html` there, only the API is served. |
+| `OTEL_*`              | see `docs/observability.md`   | OpenTelemetry export. Nothing is exported unless an endpoint is set.  |
 
 ## Caching
 
-The API Worker remembers each Registro.br answer in Workers KV for as long as that kind of answer
-stays trustworthy: 5 minutes for available domains, 15 to 30 minutes for domains being released,
-6 hours for registered domains, and 24 hours for unavailable names. Failed lookups are never
-cached. A check served from the cache says so with `servedFromCache: true`.
+`AvailabilityCache` remembers each Registro.br answer in the SQLite table `availability_cache` for as
+long as that kind of answer stays trustworthy: 5 minutes for available domains, 15 to 30 minutes for
+domains being released, 6 hours for registered domains, and 24 hours for unavailable names. Failed
+lookups are never cached. Expired rows are deleted whenever new answers are written. A check served
+from the cache says so with `servedFromCache: true`.
+
+The cache survives restarts, so restarting the service does not spend Registro.br's budget again.
+Deleting the file is always safe; the table is recreated on the next start. The SQLite client uses
+WAL mode, so the directory also holds `-wal` and `-shm` files while the service runs. A cache that
+cannot be read or written behaves as empty and logs a warning; a file that cannot be opened at
+startup stops the service.
 
 ## Public API
 
 `POST /v1/availability-checks` accepts up to 50 domains or bare names (`minhaempresa` is checked
 as `minhaempresa.com.br`). `GET /v1/domains/:domain/availability` checks one. Both return a
-`DomainCheckReport` with a `requestId`. The OpenAPI document is served at `/v1/openapi.json` and
-checked in at `apps/web/openapi.json`; regenerate it with `vp run generate:openapi`.
+`DomainCheckReport` with a `requestId`. `GET /v1/health` answers 204 without asking Registro.br.
+Unknown `/v1` paths answer 404; every other unknown path that a browser requests gets the website's
+`index.html`.
+
+The OpenAPI document is served at `/v1/openapi.json` and checked in at `apps/isavail/openapi.json`;
+regenerate it with `vp run generate:openapi`.
 
 ## Not yet done
 
-- No stage has been deployed. Deploying the relay needs a Fly.io token in the Alchemy profile
-  (`alchemy profile`), and outbound UDP from Fly Machines should be confirmed on the first deploy.
-- The relay's Fly egress address is shared. A dedicated egress address is needed before asking
-  Registro.br (`isavail@registro.br`) to register the relay as a proxy, or to raise its limit.
 - Registro.br has not been asked whether its terms allow offering this availability data to
   third parties as a service.
-- The observability Stack has not been deployed yet. Deploying it needs the Axiom credentials in
-  the Alchemy profile; see the unverified items in `docs/observability.md`.
+- The NixOS VM test (`checks.<linux>.nixos-module`) has been evaluated but not yet run; run
+  `nix flake check` on a Linux machine.

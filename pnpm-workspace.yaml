@@ -9,12 +9,12 @@ catalog:
   "@effect/platform-browser": 4.0.5
   "@effect/platform-node": 4.0.5
   "@effect/platform-node-shared": 4.0.5
+  "@effect/sql-sqlite-node": 4.0.5
   "@effect/tsgo": 0.53.1
   "@effect/vitest": 4.0.5
   "@foldkit/ui": 0.168.0
   "@foldkit/vite-plugin": 0.27.1
   "@types/node": ^24
-  alchemy: 2.0.0-beta.83
   effect: 4.0.5
   foldkit: 0.168.0
   typescript: ^7.0.2
@@ -22,7 +22,7 @@ catalog:
   vite-plus: 1.2.0
   vitest: 5.0.4
 
-# Effect 4.0.4 introduced the UDP DatagramSocket the relay needs, while Foldkit
+# Effect 4.0.4 introduced the UDP DatagramSocket the ISAVAIL client needs, while Foldkit
 # pins its Effect peers to exactly 4.0.0. One Effect copy must exist in the
 # graph because Context identity breaks across copies, so every Effect package
 # is forced to the same patch release.
@@ -32,6 +32,7 @@ overrides:
   "@effect/platform-browser": "catalog:"
   "@effect/platform-node": "catalog:"
   "@effect/platform-node-shared": "catalog:"
+  "@effect/sql-sqlite-node": "catalog:"
 
 peerDependencyRules:
   allowAny:
@@ -45,6 +46,7 @@ minimumReleaseAgeExclude:
   - "@effect/platform-browser@4.0.5"
   - "@effect/platform-node-shared@4.0.5"
   - "@effect/platform-node@4.0.5"
+  - "@effect/sql-sqlite-node@4.0.5"
   - "@effect/vitest@4.0.5"
   - effect@4.0.5
   - "@effect/tsgo-darwin-arm64@0.53.1"
@@ -55,7 +57,3 @@ minimumReleaseAgeExclude:
   - "@effect/tsgo-win32-arm64@0.53.1"
   - "@effect/tsgo-win32-x64@0.53.1"
   - "@effect/tsgo@0.53.1"
-
-allowBuilds:
-  workerd: true
-  esbuild: true

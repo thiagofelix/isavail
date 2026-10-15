@@ -19,13 +19,7 @@ const disabled = (ruleNames: Iterable<string>): Record<string, "off"> =>
 
 const testFiles = ["**/test/**/*.ts", "**/*.test.ts", "**/*.spec.ts"];
 
-const generatedAndVendored = [
-  "repos/**",
-  "**/dist/**",
-  "**/.alchemy/**",
-  "**/.wrangler/**",
-  "**/openapi.json",
-];
+const generatedAndVendored = ["repos/**", "**/dist/**", "**/openapi.json", "result*/**"];
 
 export default defineConfig({
   fmt: {
@@ -67,7 +61,7 @@ export default defineConfig({
       },
       {
         // Each test is its own entry point: it provides layers built from per-test values
-        // such as a fake registry's port or a presented token. Story tests drive `update`
+        // such as a fake registry's port. Story tests drive `update`
         // by constructing Messages directly, which is how Foldkit's Story API works.
         files: testFiles,
         plugins: ["effecttsgo"],
@@ -77,8 +71,9 @@ export default defineConfig({
         },
       },
       {
-        // Scripts are entry points: each one provides the platform layers it runs on.
-        files: ["**/scripts/**/*.ts"],
+        // Scripts and the server entry are entry points: each one provides the platform
+        // layers it runs on.
+        files: ["**/scripts/**/*.ts", "apps/isavail/src/server/main.ts"],
         plugins: ["effecttsgo"],
         rules: {
           "effecttsgo/strict-effect-provide": "off",
@@ -87,7 +82,7 @@ export default defineConfig({
       {
         // Browser-only code: `document` and `location` are the platform here, and the rule
         // guards Foldkit server targets.
-        files: ["apps/web/src/client/**/*.ts"],
+        files: ["apps/isavail/src/client/**/*.ts"],
         rules: {
           "foldkit/no-nonportable-server-globals": "off",
         },
