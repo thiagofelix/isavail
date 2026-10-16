@@ -34,9 +34,16 @@ stdenv.mkDerivation (finalAttrs: {
     inherit (finalAttrs) pname version src;
     inherit pnpm;
     fetcherVersion = 4;
+    # pnpm on macOS leaves an empty v11/links directory in the store that it
+    # never creates on Linux; every file is otherwise identical. Dropping empty
+    # directories before the store is archived makes `hash` the same on every
+    # platform.
+    postInstall = ''
+      find "$storePath" -type d -empty -delete
+    '';
     # Update after any pnpm-lock.yaml change: set to "" (or lib.fakeHash),
     # run `nix build`, and copy the hash Nix reports.
-    hash = "sha256-9ydiPoPFIkDlitNhD8U6VyY0m/ZndNA1JpS/cBNcK1M=";
+    hash = "sha256-/YPlZEz7e7HlBhirWI5hv0xNhxdQI1BiNqdRZ8/hXOc=";
   };
 
   nativeBuildInputs = [
